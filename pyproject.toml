@@ -1,0 +1,17 @@
+[project]
+name = "ospf-sla-states-automation"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { email = "natrajexplore@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+ospf-sla-states-automation = "ospf_sla_states_automation:main"
+
+[build-system]
+requires = ["uv_build>=0.12.13,<0.13.0"]
+build-backend = "uv_build"
