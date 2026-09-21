@@ -1,0 +1,4 @@
+{# Baseline: R4 reaches R1's loopback over two equal-cost inter-area paths (via R3 and via R2).
+   Raising the cost of the R4-R3 link makes R2 the only best path. #}
+interface {{ area1_link_r4_if }}
+ ip ospf cost {{ 10 if rollback else steer_cost }}

@@ -1,0 +1,16 @@
+title: "MULTI-AREA - R4 advertises a new prefix in area 1 and R3 (ABR) turns it into an inter-area route"
+concept: multi_area_abr
+summary: >
+  R4's Loopback1 (10.4.4.0/24) is placed in area 1 as a point-to-point interface so it is advertised
+  as a /24 rather than a /32 host route. R3 is the ABR: it originates a type-3 summary LSA into area 0,
+  and R1 installs the prefix as "O IA". Rollback removes it and the O IA route is withdrawn.
+template: 03_inter_area.j2
+targets: [R4]
+settle_seconds: 20
+verify:
+  - device: R3
+    command: "show ip ospf database summary 10.4.4.0"
+    expect_regex: 'Link State ID: 10\.4\.4\.0'
+  - device: R1
+    command: "show ip route ospf"
+    expect_regex: 'O IA\s+10\.4\.4\.0/24'

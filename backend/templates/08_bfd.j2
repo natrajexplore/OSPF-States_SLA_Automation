@@ -1,0 +1,9 @@
+{# BFD hello every 50 ms, declared down after 3 misses (~150 ms), and OSPF is told to tear down the adjacency when BFD drops. #}
+interface {{ "Ethernet1/1" if target == "R3" else "Ethernet1/0" }}
+{% if rollback %}
+ no ip ospf bfd
+ no bfd interval 50 min_rx 50 multiplier 3
+{% else %}
+ bfd interval 50 min_rx 50 multiplier 3
+ ip ospf bfd
+{% endif %}

@@ -1,0 +1,32 @@
+title: "DR/BDR - priority moves the designated router from R3 to R1"
+concept: dr_bdr_election
+summary: >
+  On the 10.0.123.0/24 broadcast segment, baseline priorities make R3 (100) the DR and R2 (50) the BDR.
+  The scenario sets R1 to 255 and R3 to 0 (never eligible). The election is non-preemptive, so the
+  OSPF process is cleared on all three routers to force a new election: R1 becomes DR, R2 BDR,
+  R3 DROTHER. Rollback restores the baseline priorities and repeats the election.
+template: 02_dr_bdr.j2
+targets: [R1, R2, R3]
+post_commands:
+  - "clear ip ospf process"
+settle_seconds: 90
+verify:
+  - device: R1
+    command: "show ip ospf interface Ethernet1/0"
+    expect_regex: 'State DR,'
+  - device: R2
+    command: "show ip ospf interface Ethernet1/0"
+    expect_regex: 'State BDR,'
+  - device: R3
+    command: "show ip ospf interface Ethernet1/0"
+    expect_regex: 'State DROTHER,'
+rollback_verify:
+  - device: R3
+    command: "show ip ospf interface Ethernet1/0"
+    expect_regex: 'State DR,'
+  - device: R2
+    command: "show ip ospf interface Ethernet1/0"
+    expect_regex: 'State BDR,'
+  - device: R1
+    command: "show ip ospf interface Ethernet1/0"
+    expect_regex: 'State DROTHER,'

@@ -1,0 +1,9 @@
+{# A loopback is advertised as /32 unless its OSPF network type is point-to-point. #}
+interface Loopback1
+{% if rollback %}
+ no ip ospf 1 area
+ no ip ospf network
+{% else %}
+ ip ospf network point-to-point
+ ip ospf 1 area 1
+{% endif %}

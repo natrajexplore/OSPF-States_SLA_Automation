@@ -1,0 +1,78 @@
+# Single source of truth for the backend AND for scripts/build_lab.py.
+# The baseline/*.cfg files must stay consistent with this (see docs/lab.md).
+
+defaults:
+  username: lab
+  password: lab123
+  secret: lab123
+  mgmt_gateway: 192.168.99.1
+  mgmt_mask: 255.255.255.0
+
+# ---------------------------------------------------------------------------
+# EVE-NG lab generation (scripts/build_lab.py -> labs/ospf-sla.unl)
+# Cisco 7206VXR / c7200 on Dynamips.
+lab:
+  name: ospf-sla
+  uuid: 7d2a41c6-5e3b-4f0a-8b1d-0c5f9e2a7b10
+  template: c7200
+  image: c7200-adventerprisek9-mz.152-4.S6
+  npe: npe-400
+  ram: 256
+  nvram: 128
+  idlepc: "0x606df838"
+  io_adapter: C7200-IO-FE              # slot0 -> fa0/0 (management)
+  slots: [PA-8E]                       # slot1 -> e1/0 .. e1/7
+  mgmt_interface: fa0/0                # onboard C7200-IO-FE, every node
+  mgmt_network:
+    type: pnet1                        # EVE "Cloud1"
+    name: MGMT-Cloud1
+
+# A link has 2 members (point-to-point) or more (shared broadcast segment = DR/BDR election).
+links:
+  - name: AREA0-LAN                    # 10.0.123.0/24, area 0, broadcast
+    members:
+      - {node: R1, if: e1/0}
+      - {node: R2, if: e1/0}
+      - {node: R3, if: e1/0}
+  - name: R3--R4                       # 10.1.34.0/30, area 1, point-to-point
+    members:
+      - {node: R3, if: e1/1}
+      - {node: R4, if: e1/0}
+  - name: R2--R4                       # 10.1.24.0/30, area 1, point-to-point (second ABR path)
+    members:
+      - {node: R2, if: e1/1}
+      - {node: R4, if: e1/1}
+
+globals:
+  # referenced by scenario templates via {{ ... }}
+  lan_prefix: 10.0.123.0/24
+  area1_link_r4_if: Ethernet1/0
+  lan_if: Ethernet1/0
+  r4_stub_loopback: 10.4.4.1
+  r4_stub_mask: 255.255.255.0
+  sla_target: 10.255.0.1
+
+devices:
+  R1:
+    role: backbone
+    mgmt_ip: 192.168.99.11
+    router_id: 10.255.0.1
+    canvas: [300, 200]
+  R2:
+    role: abr
+    mgmt_ip: 192.168.99.12
+    router_id: 10.255.0.2
+    canvas: [500, 200]
+  R3:
+    role: abr
+    mgmt_ip: 192.168.99.13
+    router_id: 10.255.0.3
+    canvas: [400, 350]
+    bfd: true
+  R4:
+    role: internal-area1
+    mgmt_ip: 192.168.99.14
+    router_id: 10.255.0.4
+    canvas: [400, 500]
+    sla: true
+    bfd: true

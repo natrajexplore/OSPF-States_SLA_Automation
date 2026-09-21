@@ -1,0 +1,28 @@
+title: "BFD - sub-second failure detection on the R3-R4 link"
+concept: bfd
+summary: >
+  BFD (50 ms x 3) is enabled on the R3-R4 link and registered with OSPF. Without BFD a silent failure is
+  found only when the 40 s dead timer expires; with BFD the adjacency is torn down in about 150 ms.
+  To measure it: after applying, run `shutdown` on R3 Ethernet1/1 from the console (the R4 side keeps
+  link-up because the EVE bridge does not signal it), watch ospf_bfd_up and ospf_neighbor_state in
+  Grafana and the IP SLA probe moving to the R2 path. Rollback removes BFD.
+template: 08_bfd.j2
+targets: [R3, R4]
+settle_seconds: 30
+verify:
+  - device: R4
+    command: "show bfd neighbors"
+    expect_regex: '10\.1\.34\.1\s+\d+/\d+\s+\S+\s+Up'
+  - device: R3
+    command: "show bfd neighbors"
+    expect_regex: '10\.1\.34\.2\s+\d+/\d+\s+\S+\s+Up'
+  - device: R3
+    command: "show ip ospf neighbor"
+    expect_regex: '10\.255\.0\.4\s+\d+\s+FULL'
+rollback_verify:
+  - device: R4
+    command: "show bfd neighbors"
+    must_not_match: '10\.1\.34\.1\s+\d+/\d+'
+  - device: R3
+    command: "show ip ospf neighbor"
+    expect_regex: '10\.255\.0\.4\s+\d+\s+FULL'

@@ -1,0 +1,25 @@
+title: "EXTERNAL ROUTES - R1 becomes an ASBR and redistributes a static route as O E2"
+concept: external_e2
+summary: >
+  R1 redistributes 172.16.99.0/24 (static to Null0) with metric-type 2. R1 becomes an ASBR, floods a
+  type-5 LSA, and R3/R4 install `O E2`; the E2 metric stays 20 across the whole domain (only the
+  forwarding address cost is added for E1). Change `ext_metric_type` to 1 in vars to see an `O E1`
+  whose metric grows hop by hop.
+template: 05_external_e2.j2
+targets: [R1]
+vars:
+  ext_prefix: 172.16.99.0
+  ext_mask: 255.255.255.0
+  ext_metric: 20
+  ext_metric_type: 2
+settle_seconds: 20
+verify:
+  - device: R3
+    command: "show ip route ospf"
+    expect_regex: 'O E2\s+172\.16\.99\.0/24'
+  - device: R4
+    command: "show ip route ospf"
+    expect_regex: 'O E2\s+172\.16\.99\.0/24'
+  - device: R3
+    command: "show ip ospf database external"
+    expect_regex: 'Link State ID: 172\.16\.99\.0'
