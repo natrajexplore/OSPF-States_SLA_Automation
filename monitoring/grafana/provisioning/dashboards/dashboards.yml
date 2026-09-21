@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: ospf
+    folder: OSPF
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

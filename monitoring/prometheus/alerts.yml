@@ -1,0 +1,43 @@
+groups:
+  - name: ospf
+    rules:
+      - alert: OSPFNeighborNotFull
+        expr: ospf_neighbor_full == 0
+        for: 30s
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.router }} neighbor {{ $labels.neighbor }} on {{ $labels.interface }} is not Full"
+      - alert: OSPFAdjacencyFlapping
+        expr: increase(ospf_neighbor_transitions_total{to_state="FULL"}[5m]) > 3
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.router }} neighbor {{ $labels.neighbor }} re-reached Full more than 3 times in 5m"
+      - alert: OSPFBFDSessionDown
+        expr: ospf_bfd_up == 0
+        for: 10s
+        labels: {severity: critical}
+        annotations:
+          summary: "BFD session {{ $labels.router }} -> {{ $labels.neighbor }} on {{ $labels.interface }} is down"
+      - alert: OSPFSLAProbeFailing
+        expr: ospf_sla_up == 0
+        for: 30s
+        labels: {severity: critical}
+        annotations:
+          summary: "IP SLA {{ $labels.operation }} on {{ $labels.router }} is failing"
+      - alert: OSPFSLALatencyHigh
+        expr: ospf_sla_rtt_milliseconds > 100
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: "IP SLA {{ $labels.operation }} on {{ $labels.router }} RTT above 100 ms"
+      - alert: OSPFRouterUnreachable
+        expr: ospf_router_reachable == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.router }} is not answering SSH polls"
+      - alert: OSPFMonitorStale
+        expr: time() - ospf_snapshot_timestamp_seconds > 120
+        labels: {severity: warning}
+        annotations:
+          summary: "No OSPF snapshot from {{ $labels.router }} for 2m (backend or Kafka path broken)"
