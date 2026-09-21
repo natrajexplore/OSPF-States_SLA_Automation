@@ -1,0 +1,10 @@
+.git
+.venv
+.env
+frontend
+monitoring
+labs
+docs
+src
+**/__pycache__
+backend/runs
