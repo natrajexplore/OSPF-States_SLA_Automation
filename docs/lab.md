@@ -56,8 +56,10 @@ Untested-on-hardware assumptions worth confirming the first time:
 
 One realistic production failure mode per concept (01-08), same yaml+j2 pattern, run against the same 4-router lab.
 Unlike 01-08 (which demonstrate a *feature*), these demonstrate a *mistake* - the kind that actually shows up in
-network incident reports - so several intentionally verify that something is **missing** on apply (`must_not_match`)
-and reappears on rollback, rather than the other way around.
+network incident reports. 09-12 verify an adjacency goes missing on apply (`must_not_match FULL`) and comes back on
+rollback. 13 is the odd one out: it verifies the route is absent on **both** apply and rollback - rollback here fully
+removes the bad redistribution rather than "fixing" it forward, so there's nothing to reappear. 14-16 run the normal
+direction (something appears on apply, disappears on rollback), same as 01-08.
 
 | # | Concept | Production failure mode |
 |---|---|---|
