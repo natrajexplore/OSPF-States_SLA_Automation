@@ -5,7 +5,7 @@ Hands-on OSPF on **EVE-NG** (Cisco 7206VXR / c7200, Dynamips) with event-driven 
 ```
 FastAPI backend (on the EVE-NG VM, network_mode: host)
    ├─ EVE-NG REST API        topology, node state, console ports
-   ├─ React UI (nginx :8081, proxies /api and SSE to the backend)
+   ├─ React UI (nginx :8082 default, proxies /api and SSE to the backend on :8010)
    ├─ Netmiko SSH ─> 192.168.99.0/24 (MGMT VRF on fa0/0, bridged via Cloud1/pnet1)
    └─ poller (20 s) ─> Kafka :9094 ─> exporter :9108 ─> Prometheus :9090 ─> Grafana :3000
 ```
@@ -35,10 +35,16 @@ Router IDs `10.255.0.1-4`, MGMT `192.168.99.11-14`. Full detail: [`docs/lab.md`]
 | 05 | External E2 / ASBR | R1 redistributes a static route; R3/R4 get `O E2` (change `ext_metric_type` for E1) | routes by type (`O E2`) |
 | 06 | NSSA | area 1 NSSA on R2/R3/R4; R4 injects Lo1 as type 7 (`O N2`), R3 translates it to type 5, R1 gets `O E2` | routes by type, adjacency bounce |
 | 07 | Cost / steering | `ip ospf cost 100` on R4 e1/0: the ECMP paths to R1 collapse to the R2 path | interface cost, IP SLA latency |
-| 08 | BFD | BFD 50 ms x 3 on R3-R4 registered with OSPF; sub-second failure detection | BFD state, neighbor state timeline |
+| 08 | BFD ⚠️ broken on Dynamips | BFD on R3-R4 registered with OSPF; sub-second failure detection | BFD state, neighbor state timeline |
 
 Order/interaction notes: 04 (stub) and 06 (NSSA) are mutually exclusive, and 03 and 06 both use R4 Lo1, so roll one back before
 applying the other. Planned next: totally-stubby, reference-bandwidth, summarization, virtual links, authentication, OSPFv3.
+
+**Scenario 08 does not work on Dynamips.** Enabling BFD (tried at both 50ms and 500ms/x3 intervals) reliably wedges the
+IOS scheduler on `c7200-adventerprisek9-mz.152-4.S6` under Dynamips CPU contention — `%SCHED-5-INT_DISABLED_BEFORE_PREEMPTION`
+at the same internal fault address regardless of which process triggers it, and the router stops answering SSH/ICMP/console.
+This is a platform defect, not a timer-speed or config issue; real hardware would not hit it. See the
+[first-run checklist](docs/lab.md#first-run-checklist) for the full failure signature and the recovery procedure if you hit it.
 
 ## Quick start
 
@@ -54,23 +60,25 @@ applying the other. Planned next: totally-stubby, reference-bandwidth, summariza
    Grafana http://localhost:3000 (dashboard *OSPF SLA & States*), Prometheus :9090, Kafka UI :8080.
 3. **Backend** (on the EVE-NG VM, with the same `.env`):
    ```
-   docker compose up -d --build          # backend :8000 and the React UI :8081
+   docker compose up -d --build          # backend :8010 and the React UI :8082
    docker exec -it ospf-sla-executor python scripts/bootstrap.py       # once: SSH + MGMT on each router
    docker exec -it ospf-sla-executor python scripts/push_baseline.py   # OSPF baseline configs
    docker exec -it ospf-sla-executor python scripts/healthcheck.py
    ```
-4. **Open the UI:** `http://<eve-vm>:8081`
+4. **Open the UI:** `http://<eve-vm>:8082`
    - **Monitor**: per-router neighbors, DR/BDR roles, routes by type, BFD and IP SLA, plus a live event feed (SSE).
    - **Scenarios**: Apply / Rollback with a streamed log, PASS/FAIL verification and before/after diffs.
    - **Lab**: devices from EVE-NG, *Reset lab to baseline*, Grafana link.
 
-   UI development: `cd frontend && npm install && VITE_API=http://<eve-vm>:8000 npm run dev` (http://localhost:5173).
-   Change the port or backend with `UI_PORT` / `API_UPSTREAM` in the `ospf-ui` service of `docker-compose.yml`.
+   UI development: `cd frontend && npm install && VITE_API=http://<eve-vm>:8010 npm run dev` (http://localhost:5173).
+   Change the port or backend with `UI_PORT` / `API_UPSTREAM` in the `ospf-ui` service of `docker-compose.yml`
+   (default here is 8010/8082, not 8000/8081, because those were already taken by another EVE-NG project on the
+   test host — see `docker-compose.yml`'s comment).
 5. **Or run a scenario from the CLI:**
    ```
    docker exec -it ospf-sla-executor python scripts/run_scenario.py apply    01_adjacency
    docker exec -it ospf-sla-executor python scripts/run_scenario.py rollback 01_adjacency
-   # or: curl -X POST http://<eve-vm>:8000/api/scenarios/01_adjacency/run
+   # or: curl -X POST http://<eve-vm>:8010/api/scenarios/01_adjacency/run
    ```
 
 API: `/api/scenarios`, `/api/scenarios/{id}/run|rollback`, `/api/lab/reset`, `/api/runs/{id}`, `/api/stream/{id}` (SSE),
@@ -90,7 +98,8 @@ Alerts in [`monitoring/prometheus/alerts.yml`](monitoring/prometheus/alerts.yml)
 
 ## Status
 
-Verified offline only (no routers in the build environment): templates render for apply/rollback, the IOS output parsers,
-the scenario engine and the monitor's event logic (mocked devices), YAML/JSON/compose syntax. The UI was built and its Docker image, nginx proxy, SSE streaming and run-log replay were tested against the
-backend with unreachable routers (a run fails cleanly), but not viewed in a browser. **Not yet run against real
-EVE-NG routers or a live Kafka/Grafana stack**: see the checklist in [`docs/lab.md`](docs/lab.md#first-run-checklist).
+Run end-to-end against real EVE-NG/Dynamips routers and a live Kafka/Grafana stack: lab import, `bootstrap.py`,
+`push_baseline.py`, `healthcheck.py`, full OSPF convergence, and scenarios 01-07 (apply + rollback, both directions)
+all pass. The monitoring pipeline (poller → Kafka → exporter → Prometheus → Grafana) confirmed live with real
+adjacency data. Scenario 08 (BFD) does not work on this platform — see the table above and
+[`docs/lab.md`](docs/lab.md#first-run-checklist) for the failure signature and recovery procedure.
