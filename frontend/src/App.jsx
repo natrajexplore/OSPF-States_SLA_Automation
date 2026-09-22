@@ -50,7 +50,7 @@ export default function App() {
         {tab === "scenarios" && <Scenarios focus={scenarioFocus} />}
         {tab === "lab" && <Lab cfg={cfg} />}
         {tab === "learn" && <Learn goToScenarios={goToScenarios} />}
-        {tab === "kafka" && <Kafka />}
+        {tab === "kafka" && <Kafka cfg={cfg} />}
       </main>
     </>
   );

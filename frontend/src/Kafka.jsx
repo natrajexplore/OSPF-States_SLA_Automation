@@ -20,7 +20,7 @@ function describe(topic, v) {
 
 const SHORT = { "ospf.neighbor.events": "events", "ospf.neighbor.snapshots": "snapshots", "ospf.config.changes": "config" };
 
-export default function Kafka() {
+export default function Kafka({ cfg }) {
   const [topics, setTopics] = useState([]);
   const [counts, setCounts] = useState({});
   const [messages, setMessages] = useState([]);
@@ -58,6 +58,11 @@ export default function Kafka() {
           Kafka
           <span className={`badge ${connected ? "ok" : "warn"}`}>{connected ? "live" : "connecting"}</span>
           <span className="spacer" />
+          {cfg?.kafka_ui_url && (
+            <a className="btn" href={cfg.kafka_ui_url} target="_blank" rel="noreferrer">
+              Open in Kafka UI {"↗"}
+            </a>
+          )}
         </h3>
         <p className="muted small">
           Live tail of the 3 OSPF Kafka topics, read straight from the broker (not the in-process UI event feed on the
