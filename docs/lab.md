@@ -52,6 +52,27 @@ Untested-on-hardware assumptions worth confirming the first time:
 - [ ] Grafana dashboard *OSPF SLA & States* loads (Prometheus datasource uid `prom`)
 - [ ] The `Scenario runs` annotation query renders in Grafana 11.3 (nice-to-have; drop it from `ospf.json` if it misbehaves)
 
+## Production scenarios (09-16)
+
+One realistic production failure mode per concept (01-08), same yaml+j2 pattern, run against the same 4-router lab.
+Unlike 01-08 (which demonstrate a *feature*), these demonstrate a *mistake* - the kind that actually shows up in
+network incident reports - so several intentionally verify that something is **missing** on apply (`must_not_match`)
+and reappears on rollback, rather than the other way around.
+
+| # | Concept | Production failure mode |
+|---|---|---|
+| 09 | MTU mismatch | R4's IP MTU drops to 1300 vs R3's 1500 - hellos match, DBD exchange fails, adjacency stalls before Full |
+| 10 | Network type mismatch | R4 forced to `broadcast` while R3 stays `point-to-point` on the same link - adjacency never completes |
+| 11 | Area mismatch | R4's interface moved to area 0 while R3 stays in area 1 - hellos silently dropped, no adjacency at all |
+| 12 | Partial stub rollout | Only R3 gets `area 1 stub` (not R2/R4 together) - R3-R4 breaks, R2-R4 (separate link) stays up |
+| 13 | Missing `subnets` keyword | `redistribute static` without `subnets` silently drops a subnetted prefix - no error, route just never appears |
+| 14 | Translator takeover | Forcing `translate type7 always` on R2 (not the elected ABR) silently bypasses R3, the properly elected higher-router-id translator |
+| 15 | Reference-bandwidth mismatch | R4 alone raises `auto-cost reference-bandwidth` - costs silently diverge from R1/R2/R3 while every neighbor stays Full |
+| 16 | Fast hello (no BFD) | `ip ospf dead-interval minimal hello-multiplier 4` - sub-second-ish failure detection without touching BFD at all |
+
+Interaction notes: 14 reuses R4's Loopback1/route-map like 03 and 06 - roll those back first. 13 and 05 both set
+`redistribute static` on R1 - only one is active at a time.
+
 ## Adding a scenario
 
 1. `backend/templates/NN_name.j2`: branch on `rollback` and, when several routers are targeted, on `target`.

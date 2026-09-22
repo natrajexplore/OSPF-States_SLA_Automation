@@ -1,0 +1,20 @@
+title: "MTU MISMATCH - a smaller IP MTU on R4 stalls the R3-R4 adjacency before Full"
+concept: mtu_mismatch
+summary: >
+  R4's IP MTU toward R3 drops to 1300 while R3 stays at the default 1500. MTU is only checked during the DBD
+  exchange in ExStart/Exchange, not on an already-Full adjacency, so this scenario also clears R4's OSPF process
+  to force a fresh negotiation under the new MTU - exactly what happens for real the next time that link resets
+  after a config change like this ships. Hellos still match (MTU isn't a Hello field), so the neighbor reaches
+  2-Way/ExStart normally, then the DBD exchange fails because R3's DBD looks oversized to R4, and the adjacency
+  never reaches Full. One of the most common real production causes of a "stuck" OSPF neighbor - it looks fine at
+  the Hello level, and the actual symptom (stuck in ExStart/Exchange) is easy to misdiagnose as a timer problem.
+  Rollback restores 1500 and clears the process again to reform normally.
+template: 09_mtu_mismatch.j2
+targets: [R4]
+post_commands:
+  - "clear ip ospf process"
+settle_seconds: 30
+verify:
+  - device: R3
+    command: "show ip ospf neighbor"
+    must_not_match: '10\.255\.0\.4\s+\d+\s+FULL'

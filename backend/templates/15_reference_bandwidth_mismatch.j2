@@ -1,0 +1,6 @@
+{# auto-cost reference-bandwidth changes how interface bandwidth maps to OSPF cost, locally, per router. Unlike
+   hello/area/network-type mismatches, OSPF does NOT reject the adjacency over a reference-bandwidth mismatch -
+   IOS only logs a local warning. That's exactly what makes it dangerous in production: the network looks fully
+   converged (every neighbor stays Full) while path costs silently diverge across routers. #}
+router ospf 1
+ auto-cost reference-bandwidth {{ 100 if rollback else 10000 }}

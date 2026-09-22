@@ -3,19 +3,28 @@ import { usePoll } from "./api.js";
 import Monitor from "./Monitor.jsx";
 import Scenarios from "./Scenarios.jsx";
 import Lab from "./Lab.jsx";
+import Learn from "./Learn.jsx";
+import Kafka from "./Kafka.jsx";
 
 const TABS = [
   ["monitor", "Monitor"],
   ["scenarios", "Scenarios"],
   ["lab", "Lab"],
+  ["learn", "Learn"],
+  ["kafka", "Kafka"],
 ];
 
 export default function App() {
   const [tab, setTab] = useState(() => location.hash.slice(1) || "monitor");
+  const [scenarioFocus, setScenarioFocus] = useState(null);
   const { data: cfg } = usePoll("/api/config", 30000);
   const go = (t) => {
     setTab(t);
     location.hash = t;
+  };
+  const goToScenarios = (sid) => {
+    setScenarioFocus(sid);
+    go("scenarios");
   };
   return (
     <>
@@ -38,8 +47,10 @@ export default function App() {
       </header>
       <main>
         {tab === "monitor" && <Monitor />}
-        {tab === "scenarios" && <Scenarios />}
+        {tab === "scenarios" && <Scenarios focus={scenarioFocus} />}
         {tab === "lab" && <Lab cfg={cfg} />}
+        {tab === "learn" && <Learn goToScenarios={goToScenarios} />}
+        {tab === "kafka" && <Kafka />}
       </main>
     </>
   );

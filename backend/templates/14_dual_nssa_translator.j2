@@ -1,0 +1,35 @@
+{# NSSA with two ABRs (R2, R3): only one is elected translator (highest router-id - R3). Forcing
+   `area 1 nssa translate type7 always` on R2, the non-elected ABR, makes R2 translate independently anyway -
+   R1 then sees two separate type-5 LSAs for the same prefix, one from each ABR. A real production issue usually
+   caused by copying the `always` keyword from a PE-CE MPLS/NSSA design onto a router that didn't need it.
+   Self-contained: sets up NSSA on all three area-1 routers itself, independent of scenario 06. #}
+{% if rollback %}
+{% if target == "R4" %}
+router ospf 1
+ no redistribute connected
+ no area 1 nssa
+no route-map LO1-ONLY
+{% elif target == "R2" %}
+router ospf 1
+ no area 1 nssa translate type7 always
+ no area 1 nssa
+{% else %}
+router ospf 1
+ no area 1 nssa
+{% endif %}
+{% else %}
+{% if target == "R4" %}
+route-map LO1-ONLY permit 10
+ match interface Loopback1
+router ospf 1
+ area 1 nssa
+ redistribute connected subnets route-map LO1-ONLY
+{% elif target == "R2" %}
+router ospf 1
+ area 1 nssa
+ area 1 nssa translate type7 always
+{% else %}
+router ospf 1
+ area 1 nssa
+{% endif %}
+{% endif %}

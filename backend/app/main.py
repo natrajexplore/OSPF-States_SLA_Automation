@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 
-from . import bus, monitor, scenarios
+from . import bus, kafka_tail, monitor, scenarios
 from . import devices as dev_mod
 from .config import settings
 from .eveng import EveNGClient, EveNGError
@@ -18,10 +18,14 @@ from .inventory import build_devices
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    task = asyncio.create_task(monitor.run_forever()) if settings.monitor_enabled else None
+    tasks = []
+    if settings.monitor_enabled:
+        tasks.append(asyncio.create_task(monitor.run_forever()))
+    if settings.kafka_bootstrap:
+        tasks.append(asyncio.create_task(kafka_tail.run_forever()))
     yield
-    if task:
-        task.cancel()
+    for t in tasks:
+        t.cancel()
     bus.flush()
 
 
@@ -63,6 +67,29 @@ async def events_stream() -> StreamingResponse:
                 yield f"event: ospf\ndata: {msg['data']}\n\n"
         finally:
             unsubscribe(bus.UI_CHANNEL, q)
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.get("/api/kafka/recent")
+def kafka_recent() -> dict:
+    return {"topics": kafka_tail.topics(), "counts": dict(kafka_tail.COUNTS), "messages": list(kafka_tail.RECENT)}
+
+
+@app.get("/api/kafka/stream")
+async def kafka_stream() -> StreamingResponse:
+    q = subscribe(kafka_tail.KAFKA_CHANNEL)
+
+    async def gen():
+        try:
+            while True:
+                msg = await q.get()
+                if msg is None:
+                    return
+                yield f"event: kafka\ndata: {msg['data']}\n\n"
+        finally:
+            unsubscribe(kafka_tail.KAFKA_CHANNEL, q)
 
     return StreamingResponse(gen(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

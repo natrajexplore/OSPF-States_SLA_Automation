@@ -38,7 +38,12 @@ Router IDs `10.255.0.1-4`, MGMT `192.168.99.11-14`. Full detail: [`docs/lab.md`]
 | 08 | BFD ⚠️ broken on Dynamips | BFD on R3-R4 registered with OSPF; sub-second failure detection | BFD state, neighbor state timeline |
 
 Order/interaction notes: 04 (stub) and 06 (NSSA) are mutually exclusive, and 03 and 06 both use R4 Lo1, so roll one back before
-applying the other. Planned next: totally-stubby, reference-bandwidth, summarization, virtual links, authentication, OSPFv3.
+applying the other. 14 also uses R4 Lo1 (self-contained NSSA setup) - same rule applies against 03 and 06. 13 and 05 both
+configure `redistribute static` on R1 - only one can be active at a time. Planned next: totally-stubby, summarization,
+virtual links, authentication, OSPFv3.
+
+**Production scenarios (09-16):** one realistic production failure mode per concept (01-08), run against the same lab -
+see the table above for 08's platform caveat, and [`docs/lab.md`](docs/lab.md#production-scenarios-09-16) for the full list.
 
 **Scenario 08 does not work on Dynamips.** Enabling BFD (tried at both 50ms and 500ms/x3 intervals) reliably wedges the
 IOS scheduler on `c7200-adventerprisek9-mz.152-4.S6` under Dynamips CPU contention — `%SCHED-5-INT_DISABLED_BEFORE_PREEMPTION`

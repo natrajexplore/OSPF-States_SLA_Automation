@@ -1,0 +1,32 @@
+title: "FAST HELLO - sub-second OSPF timers as a BFD-free failure-detection fallback"
+concept: fast_hello
+summary: >
+  `ip ospf dead-interval minimal hello-multiplier 4` sends 4 hellos per second and declares the neighbor down
+  after just 1 second of silence, instead of the default 40s dead timer - no BFD required. Slower than real BFD
+  (roughly 1s here vs BFD's tens of milliseconds) but a genuinely used, much safer production fallback when BFD
+  isn't available on the hardware, or - as documented for scenario 08 on this lab - isn't safe to run at all
+  (BFD wedges the IOS scheduler under Dynamips CPU contention; this scenario deliberately avoids BFD entirely).
+  Rollback restores the 10s hello-interval baseline (40s dead timer).
+template: 16_fast_hello_no_bfd.j2
+targets: [R3, R4]
+settle_seconds: 30
+verify:
+  - device: R3
+    command: "show ip ospf interface Ethernet1/1"
+    expect_regex: 'Hello \d+ msec, Dead 1,'
+  - device: R4
+    command: "show ip ospf interface Ethernet1/0"
+    expect_regex: 'Hello \d+ msec, Dead 1,'
+  - device: R3
+    command: "show ip ospf neighbor"
+    expect_regex: '10\.255\.0\.4\s+\d+\s+FULL'
+rollback_verify:
+  - device: R3
+    command: "show ip ospf interface Ethernet1/1"
+    must_not_match: 'Hello \d+ msec, Dead 1,'
+  - device: R4
+    command: "show ip ospf interface Ethernet1/0"
+    must_not_match: 'Hello \d+ msec, Dead 1,'
+  - device: R3
+    command: "show ip ospf neighbor"
+    expect_regex: '10\.255\.0\.4\s+\d+\s+FULL'
