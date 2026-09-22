@@ -28,6 +28,9 @@ main { max-width: 1400px; margin: 0 auto; padding: 16px; }
 .grid .card { margin-bottom: 0; }
 .card.dim { opacity: .6; }
 .card.focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.quiz-q { padding: 8px 0; border-top: 1px solid var(--line); }
+.quiz-q:first-of-type { border-top: 0; }
+.ok-text { color: var(--ok); } .bad-text { color: var(--bad); }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); }
 th { color: var(--muted); font-weight: 500; font-size: 12px; }

@@ -8,6 +8,38 @@ export const TOPICS = [
     title: "OSPF Fundamentals & Neighbor States",
     blurb: "What OSPF actually is, and the state machine every adjacency goes through.",
     scenarios: ["01_adjacency", "09_mtu_mismatch"],
+    quizzes: {
+      beginner: [
+        { q: "What does OSPF fundamentally do?", options: [
+          "Routers learn the topology and calculate paths themselves",
+          "An administrator manually configures every route",
+          "It's a file transfer protocol",
+          "It's a DNS resolution protocol",
+        ], correct: 0, explain: "OSPF routers build a map of the network (link-state) and each computes its own shortest paths - no manual route entry needed." },
+        { q: "What does it mean when a neighbor relationship reaches “Full”?", options: [
+          "The physical link is saturated with traffic",
+          "The two routers are fully synchronized and ready to route",
+          "The routers have exchanged one Hello packet",
+          "“Full” isn't a real OSPF term",
+        ], correct: 1, explain: "Full means the link-state databases are completely synchronized - the end state of the neighbor state machine." },
+        { q: "Which state comes right before Full?", options: ["Down", "2-Way", "Loading", "ExStart"], correct: 2,
+          explain: "Order is Down → Init → 2-Way → ExStart → Exchange → Loading → Full." },
+      ],
+      pro: [
+        { q: "OSPF is best described as which type of routing protocol?", options: [
+          "Distance-vector", "Link-state", "Path-vector", "Static-only",
+        ], correct: 1, explain: "Every router floods topology pieces (LSAs) and independently runs SPF - that's link-state, distinct from distance-vector protocols like RIP." },
+        { q: "Which of these does NOT need to match between two routers to become OSPF neighbors?", options: [
+          "hello-interval", "area ID", "the OSPF process ID (e.g. `router ospf 1` vs `router ospf 100`)", "dead-interval",
+        ], correct: 2, explain: "The process ID is a purely local tag - it never needs to match between routers, unlike hello/dead timers, area ID, and other Hello-carried parameters." },
+        { q: "Why can an MTU mismatch let an adjacency look fine at first, then get stuck?", options: [
+          "MTU is checked in the Hello packet itself",
+          "MTU is only checked during the DBD exchange, not on an already-Full adjacency",
+          "MTU never actually matters in OSPF",
+          "MTU mismatches always block Init immediately",
+        ], correct: 1, explain: "Hellos don't carry MTU, so 2-Way/ExStart happen normally; the DBD exchange is where an oversized DBD gets rejected." },
+      ],
+    },
     beginner: [
       "OSPF (Open Shortest Path First) is a routing protocol that lets routers automatically learn the network's " +
         "topology and calculate the best path to every destination. Instead of you typing in routes by hand, each " +
@@ -83,6 +115,41 @@ export const TOPICS = [
     title: "DR/BDR Election",
     blurb: "Why multi-access segments need a Designated Router, and how the election actually behaves.",
     scenarios: ["02_dr_bdr", "10_network_type_mismatch"],
+    quizzes: {
+      beginner: [
+        { q: "Why does OSPF elect a DR on a multi-access segment?", options: [
+          "To reduce the number of full adjacencies and routing chatter",
+          "It's required for licensing",
+          "To assign IP addresses to routers",
+          "To speed up Hello packets",
+        ], correct: 0, explain: "Without a DR, N routers would need N² full adjacencies; with one, everyone only needs Full with the DR/BDR." },
+        { q: "In this lab's baseline, which router is the DR?", options: ["R1", "R2", "R3", "R4"], correct: 2,
+          explain: "R3 has priority 100, the highest on the AREA0-LAN segment, so it's DR; R2 (priority 50) is BDR." },
+        { q: "A higher-priority router joins the segment after the DR is already elected. What happens?", options: [
+          "The DR immediately changes to the higher-priority router",
+          "Nothing changes - the current DR stays DR (non-preemptive)",
+          "Both routers become DR",
+          "The segment stops working",
+        ], correct: 1, explain: "DR election is non-preemptive - only the current DR leaving (or a forced reset) triggers a new election." },
+      ],
+      pro: [
+        { q: "Do point-to-point links need a DR/BDR election?", options: [
+          "Yes, always", "No - there are only ever two routers on the segment", "Only if priority is set", "Only on Ethernet",
+        ], correct: 1, explain: "With exactly two routers, a full adjacency between them costs nothing extra - DR/BDR exists to scale multi-access segments." },
+        { q: "What breaks if one end of a link is `ip ospf network broadcast` and the other stays `point-to-point`?", options: [
+          "Nothing, OSPF auto-negotiates the type",
+          "The adjacency won't complete - the two sides disagree on whether election should happen",
+          "Only the DR election breaks, the adjacency still forms",
+          "Only Hello timers are affected",
+        ], correct: 1, explain: "Network type is a local interpretation of the wire, not renegotiated - a mismatch here breaks the adjacency outright (scenario 10)." },
+        { q: "What actually forces DR re-election in production?", options: [
+          "Changing everyone else's priority alone",
+          "Waiting exactly 40 seconds",
+          "The current DR failing, or an admin-forced reset (e.g. `clear ip ospf process`)",
+          "Rebooting a DROTHER router",
+        ], correct: 2, explain: "Only the DR's own departure or an explicit forced reset triggers a new election - priority changes alone don't." },
+      ],
+    },
     beginner: [
       "On a shared Ethernet segment with 3+ routers, if every router formed a full adjacency with every other " +
         "router, the number of adjacencies (and the amount of routing chatter) would grow very fast as routers are " +
@@ -136,6 +203,33 @@ export const TOPICS = [
     title: "Areas, ABRs & LSA Types",
     blurb: "How OSPF scales past one flat topology, and what actually crosses an area boundary.",
     scenarios: ["03_inter_area", "11_area_mismatch"],
+    quizzes: {
+      beginner: [
+        { q: "What is an ABR?", options: [
+          "A router with interfaces in more than one area",
+          "The one router that must be in area 0",
+          "Any router running OSPF",
+          "A router that only handles external routes",
+        ], correct: 0, explain: "Area Border Router = a router that straddles two (or more) areas - R2 and R3 in this lab." },
+        { q: "What area number is the backbone area?", options: ["1", "0", "100", "It varies per network"], correct: 1,
+          explain: "Area 0 is always the backbone; every other area must connect to it." },
+        { q: "Which routers are in area 0 in this lab?", options: ["R1, R2, R3", "R2, R3, R4", "Only R1", "All four"], correct: 0,
+          explain: "R1, R2, R3 share the AREA0-LAN segment in area 0; R4 is entirely in area 1." },
+      ],
+      pro: [
+        { q: "What happens when both ends of a link disagree on area ID?", options: [
+          "The adjacency forms with a warning logged",
+          "Hellos are silently discarded - no adjacency forms at all",
+          "It only affects the routing table, not the adjacency",
+          "OSPF automatically picks one area for both",
+        ], correct: 1, explain: "Area ID mismatch means the Hello is dropped outright, with nothing in `show interface` to explain why (scenario 11)." },
+        { q: "Which routing table prefix indicates a type-3 summary route?", options: ["O", "O IA", "O E2", "O N2"], correct: 1,
+          explain: "“O IA” = OSPF inter-area, sourced from a type-3 summary LSA an ABR originated." },
+        { q: "Which LSA type does an ABR originate to advertise a route from one area into another?", options: [
+          "Type 1", "Type 2", "Type 3", "Type 5",
+        ], correct: 2, explain: "Type 3 (Summary LSA) is exactly this: an ABR's summarized cost to an intra-area destination, advertised into another area." },
+      ],
+    },
     beginner: [
       "A large OSPF network run as one single “area” means every router has to store and process every " +
         "other router's link-state information - that gets expensive to compute and slow to react to changes as " +
@@ -196,6 +290,39 @@ export const TOPICS = [
     title: "Stub, Totally Stubby & NSSA Areas",
     blurb: "Keeping external routing information out of areas that don't need it.",
     scenarios: ["04_stub_area", "06_nssa", "12_partial_stub_rollout", "14_dual_nssa_translator"],
+    quizzes: {
+      beginner: [
+        { q: "What does a stub area's ABR inject instead of individual external routes?", options: [
+          "A default route", "Nothing at all", "A summary of every external route", "A type-5 LSA per route",
+        ], correct: 0, explain: "A single default route does the same job as every external route, with far less to store and process." },
+        { q: "What is NSSA for?", options: [
+          "An area that needs to originate a few external routes while still not receiving everyone else's",
+          "An area with no routers in it",
+          "A backup backbone area",
+          "A faster version of a stub area with no functional difference",
+        ], correct: 0, explain: "NSSA (Not-So-Stubby) lets the area originate its own externals (as type-7, translated to type-5 at the ABR) while still blocking everyone else's." },
+        { q: "In scenario 04, what does R4 get once area 1 becomes stub?", options: [
+          "O*IA 0.0.0.0/0", "O E2 172.16.99.0", "No change at all", "A type-5 LSA",
+        ], correct: 0, explain: "The ABR injects a default route, shown as `O*IA 0.0.0.0/0` on R4." },
+      ],
+      pro: [
+        { q: "Only one of two routers attached to the same area enables the stub flag. What happens?", options: [
+          "Nothing - stub is a per-router setting with no interaction",
+          "That router's adjacency in the area breaks while its unaffected peers on other links stay up",
+          "The whole area goes down",
+          "IOS auto-corrects the mismatch",
+        ], correct: 1, explain: "The stub flag is negotiated in Hellos per-link - a mismatch there breaks just that adjacency (scenario 12)." },
+        { q: "How is the NSSA translator elected among multiple ABRs?", options: [
+          "By configured priority", "By highest Router ID among the NSSA's ABRs", "Whichever boots first", "By lowest Router ID",
+        ], correct: 1, explain: "Translator election is purely Router-ID based - highest wins, not configurable by priority." },
+        { q: "In scenario 14, forcing `translate type7 always` on the non-elected ABR (R2) actually caused what?", options: [
+          "Two competing type-5 LSAs (duplicates) from both ABRs",
+          "R2 silently took over translation - R3, the properly elected ABR, never originated its own type-5",
+          "No change at all",
+          "The R3-R4 adjacency broke",
+        ], correct: 1, explain: "Verified live: R1 only ever saw R2's type-5 LSA for the prefix, never R3's - a silent takeover, not a duplicate." },
+      ],
+    },
     beginner: [
       "If an area only has one way out to the rest of the network, it doesn't need to know the detailed reason for " +
         "every external route out there - a single default route pointing at the ABR does the same job with far " +
@@ -253,6 +380,39 @@ export const TOPICS = [
     title: "External Routes, ASBRs & Redistribution",
     blurb: "Bringing routes from outside OSPF in - and the classic ways that goes wrong.",
     scenarios: ["05_external_e2", "13_subnets_keyword"],
+    quizzes: {
+      beginner: [
+        { q: "What is an ASBR?", options: [
+          "A router that redistributes routes from outside OSPF into OSPF",
+          "The area 0 router",
+          "Any router with a static route configured",
+          "A router running BFD",
+        ], correct: 0, explain: "Autonomous System Boundary Router - the redistribution point between OSPF and everything else." },
+        { q: "In the routing table, what does the “E” in “O E2” mean?", options: [
+          "Enterprise", "External", "Edge", "Error",
+        ], correct: 1, explain: "O E2 = an OSPF external route, type 2." },
+        { q: "Can a redistribution command “succeed” (no error shown) but still not do what you expected?", options: [
+          "No, IOS always errors on a redistribution mistake",
+          "Yes - scenario 13 shows a route silently dropped with zero error output",
+          "Only when redistributing BGP",
+          "Only on point-to-point links",
+        ], correct: 1, explain: "Missing `subnets` silently drops subnetted routes - the command is accepted, nothing is logged." },
+      ],
+      pro: [
+        { q: "When both an E1 and E2 route exist for the same prefix, which wins, regardless of metric value?", options: [
+          "E2 always wins", "E1 always wins", "Whichever has the lower Router ID", "They load-balance",
+        ], correct: 1, explain: "Route type is compared before metric - E1 always beats E2, no matter the numbers." },
+        { q: "What keyword is required to redistribute a route that isn't on a natural classful boundary?", options: [
+          "`classless`", "`subnets`", "`all`", "`vlsm`",
+        ], correct: 1, explain: "Without `subnets`, only whole classful-network statics get redistributed - almost everything on a modern network is a subnet of one." },
+        { q: "E2's metric is described as staying the same “across the domain.” What's the caveat?", options: [
+          "There is no caveat - it's always identical everywhere",
+          "With multiple E2 routes to the same prefix, ties are broken by internal cost to the ASBR - internal topology still matters",
+          "E2 metrics change on every hop",
+          "E2 doesn't work with more than one ASBR",
+        ], correct: 1, explain: "Only the external portion of the metric is domain-wide; tie-breaking among equal E2 routes still depends on internal cost." },
+      ],
+    },
     beginner: [
       "Not every route in a network comes from OSPF - a router might learn a route from a static configuration, a " +
         "different routing protocol, or a directly connected network that isn't running OSPF. “Redistribution” " +
@@ -306,6 +466,39 @@ export const TOPICS = [
     title: "Cost, Reference Bandwidth & Path Selection",
     blurb: "How OSPF actually decides which path is “best” - and how that silently breaks at scale.",
     scenarios: ["07_cost_steering", "15_reference_bandwidth_mismatch"],
+    quizzes: {
+      beginner: [
+        { q: "By default, how does OSPF derive an interface's cost?", options: [
+          "From distance in miles between routers",
+          "From interface bandwidth (reference-bandwidth ÷ interface-bandwidth)",
+          "Randomly, re-rolled on every SPF run",
+          "From the number of neighbors on the interface",
+        ], correct: 1, explain: "Cost defaults to reference-bandwidth divided by interface bandwidth - faster links get a lower (cheaper) cost." },
+        { q: "What does ECMP mean?", options: [
+          "Equal-Cost Multi-Path - using more than one path at once when costs tie",
+          "A type of LSA",
+          "A stub area variant",
+          "A BFD configuration setting",
+        ], correct: 0, explain: "When two paths have identical total cost, OSPF can use both at once - that's ECMP." },
+        { q: "How do you manually steer traffic away from a link without touching bandwidth at all?", options: [
+          "`ip ospf cost N`", "`ip ospf priority 0`", "`shutdown`", "`no ip ospf`",
+        ], correct: 0, explain: "Setting cost directly overrides the bandwidth-derived default, letting you steer traffic deliberately." },
+      ],
+      pro: [
+        { q: "What is the default OSPF reference-bandwidth on Cisco IOS?", options: [
+          "1000 Mbps", "100 Mbps", "10 Mbps", "1 Mbps",
+        ], correct: 1, explain: "100 Mbps is the IOS default - meaning anything at or above Fast Ethernet speed gets clamped to the same minimum cost of 1." },
+        { q: "Does OSPF enforce that every router uses the same reference-bandwidth?", options: [
+          "Yes - the adjacency fails on any mismatch",
+          "No - it only logs a local warning, and neighbors stay Full despite the mismatch",
+          "Yes, but only between Cisco routers",
+          "It's automatically synchronized network-wide",
+        ], correct: 1, explain: "Verified live in scenario 15: R4 alone changed reference-bandwidth and every adjacency stayed Full - no enforcement at all." },
+        { q: "Which command/output shows a router's currently configured reference bandwidth?", options: [
+          "`show ip ospf neighbor`", "`show ip ospf` (“Reference bandwidth unit is N mbps”)", "`show ip route`", "`show running-config | include cost`",
+        ], correct: 1, explain: "The process-level `show ip ospf` output states the reference bandwidth explicitly - check it on every router to catch a mismatch." },
+      ],
+    },
     beginner: [
       "When there's more than one way to reach a destination, OSPF picks the path with the lowest total cost - " +
         "the sum of the cost of every link along the way. By default, cost is derived from interface bandwidth: " +
@@ -352,6 +545,39 @@ export const TOPICS = [
     title: "BFD & Fast Convergence",
     blurb: "Detecting a dead neighbor in milliseconds instead of tens of seconds - and what to do when that's not an option.",
     scenarios: ["08_bfd", "16_fast_hello_no_bfd"],
+    quizzes: {
+      beginner: [
+        { q: "At this lab's baseline timers, how long does it take OSPF to notice a dead neighbor by default?", options: [
+          "Instantly", "40 seconds", "5 minutes", "1 second",
+        ], correct: 1, explain: "40s dead timer (4x the 10s hello-interval) - the default OSPF wait before declaring a neighbor gone." },
+        { q: "What does BFD do?", options: [
+          "Bidirectional Forwarding Detection - a fast, lightweight, protocol-independent liveness check",
+          "Backup Forwarding Database - a routing table cache",
+          "Basic Firewall Detection",
+          "A type of LSA",
+        ], correct: 0, explain: "BFD is a separate, much faster heartbeat that tells OSPF (or any protocol using it) to react immediately instead of waiting out the dead timer." },
+        { q: "Can every platform run BFD reliably?", options: [
+          "Yes, always, on any hardware or emulator",
+          "No - this lab's software emulation can't run it reliably, a real documented limitation (docs/lab.md)",
+          "Only Juniper routers support BFD",
+          "BFD requires no CPU at all to run",
+        ], correct: 1, explain: "BFD's aggressive timers need near-real-time scheduling; Dynamips software emulation on this lab's host can't guarantee that, and it wedges the IOS scheduler." },
+      ],
+      pro: [
+        { q: "What command tells OSPF to actually use BFD (once BFD itself is set up on the interface)?", options: [
+          "`ip ospf bfd`", "`bfd enable`", "`ip ospf fast-hello`", "`router bfd`",
+        ], correct: 0, explain: "`ip ospf bfd` registers the interface's neighbor(s) with BFD for failure detection." },
+        { q: "What's the BFD-free alternative demonstrated in scenario 16 for faster-than-default detection?", options: [
+          "`ip ospf dead-interval minimal hello-multiplier N`", "`ip ospf priority 255`", "`ip ospf mtu-ignore`", "`ip ospf network broadcast`",
+        ], correct: 0, explain: "Sends N hellos/second and declares the neighbor down after 1s of silence - no BFD session involved at all." },
+        { q: "What's the shared tradeoff between BFD and fast-hello?", options: [
+          "Neither has any real downside",
+          "Faster detection means more packets/second the control plane must process - real CPU/interrupt load",
+          "Both require a satellite uplink",
+          "They only work with statically routed networks",
+        ], correct: 1, explain: "Speed costs control-plane load - which is exactly what exposed the scheduler bug on this lab's emulated platform." },
+      ],
+    },
     beginner: [
       "By default, OSPF only notices a neighbor is gone when its dead timer expires - 40 seconds at this lab's " +
         "baseline hello-interval of 10s. For many networks that's fine; for others (financial trading, voice, " +
@@ -403,6 +629,42 @@ export const TOPICS = [
     title: "IP SLA & Operational Monitoring",
     blurb: "Measuring the network, not just routing through it - and how that data leaves the router.",
     scenarios: [],
+    quizzes: {
+      beginner: [
+        { q: "What does IP SLA tell you that OSPF convergence alone doesn't?", options: [
+          "Whether the path actually performs well - latency, loss, jitter",
+          "Exactly the same thing as OSPF convergence",
+          "Nothing - IP SLA replaces OSPF entirely",
+          "IP SLA measures latency by reading OSPF's own metric",
+        ], correct: 0, explain: "OSPF only tells you the routing table converged; IP SLA actively probes to measure how the path actually performs." },
+        { q: "In this lab, what does R4's IP SLA probe actually do?", options: [
+          "Pings R1's loopback every 10 seconds and records the RTT",
+          "Reconfigures OSPF automatically",
+          "Sends BGP updates",
+          "Nothing - it's a placeholder with no real traffic",
+        ], correct: 0, explain: "`ip sla 1 icmp-echo 10.255.0.1 ... frequency 10` - a real ICMP probe, every 10 seconds." },
+        { q: "Where can you see the live IP SLA RTT numbers in this app?", options: [
+          "Nowhere, they aren't exposed anywhere", "Monitor tab and Grafana", "Only in raw router CLI output", "Only on the Kafka tab",
+        ], correct: 1, explain: "The Monitor tab shows it live, and it's graphed over time in Grafana - same underlying data, two views." },
+      ],
+      pro: [
+        { q: "What's the difference between `ospf.neighbor.snapshots` and `ospf.neighbor.events`?", options: [
+          "Snapshots are a full per-router dump every poll; events fire only when something actually changed",
+          "They contain identical data, just different topic names",
+          "Events also fire on every poll cycle",
+          "Snapshots only exist for R4",
+        ], correct: 0, explain: "The split lets consumers choose: gauges want the latest snapshot always; a live feed wants only real changes." },
+        { q: "How often does this app poll each router by default?", options: [
+          "Every 1 second", "Every 20 seconds (OSPF_POLL_INTERVAL)", "Every hour", "Only once at startup",
+        ], correct: 1, explain: "20 seconds is the default poll interval, configurable via OSPF_POLL_INTERVAL." },
+        { q: "What triggers a message on the `ospf.config.changes` topic?", options: [
+          "Every single poll cycle, like the other two topics",
+          "A scenario apply/rollback or a lab reset to baseline - not polling at all",
+          "Only IP SLA failures",
+          "Nothing - the topic is unused",
+        ], correct: 1, explain: "Config-change events are written directly by the scenario engine when it pushes config, independent of the poller." },
+      ],
+    },
     beginner: [
       "OSPF tells you the routing table is converged - it doesn't tell you whether the path actually performs " +
         "well. IP SLA is Cisco's built-in tool for actively probing the network (sending real test traffic, like " +
