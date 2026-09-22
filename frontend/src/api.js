@@ -2,7 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export async function api(path, opts) {
   const r = await fetch(path, opts);
-  if (!r.ok) throw new Error(`${r.status} ${path}${r.status === 502 ? " (backend unreachable)" : ""}`);
+  if (!r.ok) {
+    let detail = "";
+    try {
+      detail = (await r.json()).detail || "";
+    } catch {
+      // body wasn't JSON (or was empty) - fall back to the generic message below
+    }
+    throw new Error(detail || `${r.status} ${path}${r.status === 502 ? " (backend unreachable)" : ""}`);
+  }
   return r.json();
 }
 

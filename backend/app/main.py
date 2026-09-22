@@ -169,6 +169,8 @@ async def scenario_run(sid: str) -> dict:
         return {"run_id": await scenarios.run_scenario(sid, rollback=False)}
     except FileNotFoundError:
         raise HTTPException(404, sid)
+    except scenarios.TargetsBusy as exc:
+        raise HTTPException(409, str(exc))
 
 
 @app.post("/api/scenarios/{sid}/rollback")
@@ -177,11 +179,16 @@ async def scenario_rollback(sid: str) -> dict:
         return {"run_id": await scenarios.run_scenario(sid, rollback=True)}
     except FileNotFoundError:
         raise HTTPException(404, sid)
+    except scenarios.TargetsBusy as exc:
+        raise HTTPException(409, str(exc))
 
 
 @app.post("/api/lab/reset")
 async def lab_reset(nodes: list[str] | None = None) -> dict:
-    return {"run_id": await scenarios.reset_baseline(nodes)}
+    try:
+        return {"run_id": await scenarios.reset_baseline(nodes)}
+    except scenarios.TargetsBusy as exc:
+        raise HTTPException(409, str(exc))
 
 
 @app.get("/api/runs/{run_id}")

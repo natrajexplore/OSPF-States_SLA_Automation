@@ -22,8 +22,32 @@ _env = Environment(
     lstrip_blocks=True,
 )
 
-_run_lock = asyncio.Lock()
 RUNS: dict[str, dict] = {}
+
+# Runs are serialized only against the specific routers they target, not globally: two scenarios
+# with disjoint targets (e.g. 02 on R1/R2/R3 and 09 on R4) can run at the same time; two that share
+# a router (e.g. anything else touching R4) cannot, to avoid two pushes racing on the same CLI/config.
+_locked_targets: set[str] = set()
+_targets_guard = asyncio.Lock()
+
+
+class TargetsBusy(RuntimeError):
+    def __init__(self, busy: set[str]) -> None:
+        self.busy = busy
+        super().__init__(f"already running on: {', '.join(sorted(busy))}")
+
+
+async def _acquire_targets(targets: list[str]) -> None:
+    async with _targets_guard:
+        busy = _locked_targets & set(targets)
+        if busy:
+            raise TargetsBusy(busy)
+        _locked_targets.update(targets)
+
+
+async def _release_targets(targets: list[str]) -> None:
+    async with _targets_guard:
+        _locked_targets.difference_update(targets)
 
 
 def publish(run_id: str, event: str, data: str) -> None:
@@ -103,6 +127,9 @@ async def _capture(run_id: str, verify: list[dict], devices: dict, phase: str) -
 
 async def run_scenario(sid: str, rollback: bool = False) -> str:
     sc = get_scenario(sid)
+    targets = sc["targets"]
+    await _acquire_targets(targets)  # raises TargetsBusy if another run already holds one of these routers
+
     run_id = f"{sid}-{'rollback' if rollback else 'apply'}-{uuid.uuid4().hex[:8]}"
     RUNS[run_id] = {
         "run_id": run_id, "scenario": sid, "mode": "rollback" if rollback else "apply",
@@ -112,49 +139,47 @@ async def run_scenario(sid: str, rollback: bool = False) -> str:
     async def _worker() -> None:
         t0 = time.time()
         try:
-            async with _run_lock:
-                devices = build_devices()
-                verify = verify_for(sc, rollback)
-                targets = sc["targets"]
-                lines_by_tgt = {t: render(sc, rollback, t) for t in targets}
-                lines = [f"{t}| {ln}" for t, ls in lines_by_tgt.items() for ln in ls]
+            devices = build_devices()
+            verify = verify_for(sc, rollback)
+            lines_by_tgt = {t: render(sc, rollback, t) for t in targets}
+            lines = [f"{t}| {ln}" for t, ls in lines_by_tgt.items() for ln in ls]
 
-                publish(run_id, "log", f"=== {sc['title']} ({'ROLLBACK' if rollback else 'APPLY'}) ===")
-                publish(run_id, "log", f"targets: {', '.join(targets)}")
+            publish(run_id, "log", f"=== {sc['title']} ({'ROLLBACK' if rollback else 'APPLY'}) ===")
+            publish(run_id, "log", f"targets: {', '.join(targets)}")
 
-                before = await _capture(run_id, verify, devices, "before")
+            before = await _capture(run_id, verify, devices, "before")
 
+            for tgt in targets:
+                publish(run_id, "log", f"--- pushing to {tgt} ---")
+                for ln in lines_by_tgt[tgt]:
+                    publish(run_id, "log", f"  {tgt}| {ln}")
+                out = await asyncio.to_thread(dev_mod.push_config, devices[tgt], lines_by_tgt[tgt])
+                publish(run_id, "log", out.strip())
+
+            # e.g. DR/BDR election is non-preemptive: `clear ip ospf process` forces a re-election
+            for cmd in sc.get("post_commands", []):
                 for tgt in targets:
-                    publish(run_id, "log", f"--- pushing to {tgt} ---")
-                    for ln in lines_by_tgt[tgt]:
-                        publish(run_id, "log", f"  {tgt}| {ln}")
-                    out = await asyncio.to_thread(dev_mod.push_config, devices[tgt], lines_by_tgt[tgt])
-                    publish(run_id, "log", out.strip())
+                    publish(run_id, "log", f"--- {cmd} on {tgt} ---")
+                    await asyncio.to_thread(dev_mod.exec_cmd, devices[tgt], cmd)
+            # hello/dead and wait timers need real time to expire before the verify
+            await asyncio.sleep(sc.get("settle_seconds", 10))
 
-                # e.g. DR/BDR election is non-preemptive: `clear ip ospf process` forces a re-election
-                for cmd in sc.get("post_commands", []):
-                    for tgt in targets:
-                        publish(run_id, "log", f"--- {cmd} on {tgt} ---")
-                        await asyncio.to_thread(dev_mod.exec_cmd, devices[tgt], cmd)
-                # hello/dead and wait timers need real time to expire before the verify
-                await asyncio.sleep(sc.get("settle_seconds", 10))
+            after = await _capture(run_id, verify, devices, "after")
 
-                after = await _capture(run_id, verify, devices, "after")
-
-                results = validate.evaluate(verify, after)
-                for r in results:
-                    r["diff"] = validate.diff(
-                        before.get(f"{r['device']} :: {r['command']}", ""),
-                        r["output"], f"{r['device']} {r['command']}",
-                    )
-                passed = all(r["passed"] for r in results) if results else None
-
-                RUNS[run_id].update(
-                    state="passed" if passed else ("failed" if passed is False else "done"),
-                    results=results, config=lines, before=before,
-                    duration=round(time.time() - t0, 1),
+            results = validate.evaluate(verify, after)
+            for r in results:
+                r["diff"] = validate.diff(
+                    before.get(f"{r['device']} :: {r['command']}", ""),
+                    r["output"], f"{r['device']} {r['command']}",
                 )
-                publish(run_id, "result", "passed" if passed else "failed" if passed is False else "done")
+            passed = all(r["passed"] for r in results) if results else None
+
+            RUNS[run_id].update(
+                state="passed" if passed else ("failed" if passed is False else "done"),
+                results=results, config=lines, before=before,
+                duration=round(time.time() - t0, 1),
+            )
+            publish(run_id, "result", "passed" if passed else "failed" if passed is False else "done")
         except Exception as exc:  # noqa: BLE001
             RUNS[run_id].update(state="error", error=str(exc), duration=round(time.time() - t0, 1))
             publish(run_id, "log", f"ERROR: {exc}")
@@ -163,6 +188,7 @@ async def run_scenario(sid: str, rollback: bool = False) -> str:
             RUNS[run_id]["finished"] = datetime.now(timezone.utc).isoformat()
             (RUNS_DIR / f"{run_id}.json").write_text(json.dumps(RUNS[run_id], indent=2, default=str))
             _emit_config_event(RUNS[run_id], sc.get("concept"), sc.get("targets", []))
+            await _release_targets(targets)
             done(run_id)
 
     asyncio.create_task(_worker())
@@ -172,32 +198,33 @@ async def run_scenario(sid: str, rollback: bool = False) -> str:
 async def reset_baseline(nodes: list[str] | None = None) -> str:
     from .config import BASELINE_DIR
 
+    devices = build_devices()
+    targets = nodes or list(devices)
+    await _acquire_targets(targets)  # raises TargetsBusy if any of these routers are mid-scenario
+
     run_id = f"baseline-{uuid.uuid4().hex[:8]}"
-    RUNS[run_id] = {"run_id": run_id, "scenario": "baseline", "mode": "reset",
+    RUNS[run_id] = {"run_id": run_id, "scenario": "baseline", "mode": "reset", "nodes": targets,
                     "state": "running", "started": datetime.now(timezone.utc).isoformat()}
 
     async def _worker() -> None:
         try:
-            async with _run_lock:
-                devices = build_devices()
-                targets = nodes or list(devices)
-                RUNS[run_id]["nodes"] = targets
-                for name in targets:
-                    cfg = BASELINE_DIR / f"{name}.cfg"
-                    if not cfg.exists():
-                        publish(run_id, "log", f"skip {name}: no baseline file")
-                        continue
-                    publish(run_id, "log", f"--- baseline -> {name} ---")
-                    out = await asyncio.to_thread(dev_mod.push_file, devices[name], str(cfg))
-                    publish(run_id, "log", out.strip())
-                RUNS[run_id]["state"] = "done"
-                publish(run_id, "result", "done")
+            for name in targets:
+                cfg = BASELINE_DIR / f"{name}.cfg"
+                if not cfg.exists():
+                    publish(run_id, "log", f"skip {name}: no baseline file")
+                    continue
+                publish(run_id, "log", f"--- baseline -> {name} ---")
+                out = await asyncio.to_thread(dev_mod.push_file, devices[name], str(cfg))
+                publish(run_id, "log", out.strip())
+            RUNS[run_id]["state"] = "done"
+            publish(run_id, "result", "done")
         except Exception as exc:  # noqa: BLE001
             RUNS[run_id].update(state="error", error=str(exc))
             publish(run_id, "result", "error")
         finally:
             RUNS[run_id]["finished"] = datetime.now(timezone.utc).isoformat()
             _emit_config_event(RUNS[run_id], "baseline", RUNS[run_id].get("nodes", []))
+            await _release_targets(targets)
             done(run_id)
 
     asyncio.create_task(_worker())
