@@ -33,8 +33,16 @@ Untested-on-hardware assumptions worth confirming the first time:
 - [ ] Scenario 02: R1 `DR`, R2 `BDR`, R3 `DROTHER` within `settle_seconds` (90 s; the wait timer alone is 40 s)
 - [ ] Baseline: R4 has two equal-cost routes to 10.255.0.1 (`show ip route 10.255.0.1` lists 10.1.34.1 and 10.1.24.1)
 - [ ] Scenario 06: c7200 image supports `area 1 nssa` and `match interface` in the route-map; R3 (highest router-id) translates 7 to 5
-- [ ] Scenario 08: `bfd interval ... multiplier 3` and `ip ospf bfd` accepted; `show bfd neighbors` prints `Up  Up  Et1/0`
-      (the rollback template uses `no bfd interval 50 min_rx 50 multiplier 3`, adjust if your IOS wants the bare `no bfd interval`; the baseline only uses `no ip ospf bfd`)
+- [x] Scenario 08: **known broken on Dynamips.** `bfd interval 50 min_rx 50 multiplier 3` + `ip ospf bfd` are
+      accepted syntactically, but on this c7200 image/host the 50 ms BFD timer pegs the emulated CPU and the IOS
+      scheduler wedges within ~100 ms of the neighbor going FULL (`%SCHED-5-INT_DISABLED_BEFORE_PREEMPTION`,
+      `forkx = (BFD PP Process)`) — the router stops answering SSH/ICMP/console entirely and needs a EVE-NG
+      stop/start to recover (config in NVRAM survives; a mid-crash push can also corrupt NVRAM back to factory
+      default, which happened to R4 during testing — re-run `bootstrap.py`/`push_baseline.py` for that node if so).
+      Recovery must shut the peer's interface first (e.g. `R4 Eth1/0`) before restarting the crashed node, or the
+      adjacency reforms and BFD wedges it again within the same boot. Real hardware handles 50 ms BFD fine; this
+      is a software-emulation limit, not a config bug. Try a slower interval (500 ms+) if you need this scenario
+      to work reliably, or skip it.
 - [ ] Prometheus target `exporter:9108` is UP and `ospf_neighbor_state` has series
 - [ ] Grafana dashboard *OSPF SLA & States* loads (Prometheus datasource uid `prom`)
 - [ ] The `Scenario runs` annotation query renders in Grafana 11.3 (nice-to-have; drop it from `ospf.json` if it misbehaves)

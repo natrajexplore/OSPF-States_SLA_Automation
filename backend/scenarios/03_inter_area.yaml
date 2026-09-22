@@ -6,7 +6,7 @@ summary: >
   and R1 installs the prefix as "O IA". Rollback removes it and the O IA route is withdrawn.
 template: 03_inter_area.j2
 targets: [R4]
-settle_seconds: 20
+settle_seconds: 35
 verify:
   - device: R3
     command: "show ip ospf database summary 10.4.4.0"

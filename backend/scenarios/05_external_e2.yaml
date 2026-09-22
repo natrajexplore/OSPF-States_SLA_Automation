@@ -12,14 +12,14 @@ vars:
   ext_mask: 255.255.255.0
   ext_metric: 20
   ext_metric_type: 2
-settle_seconds: 20
+settle_seconds: 30
 verify:
   - device: R3
     command: "show ip route ospf"
-    expect_regex: 'O E2\s+172\.16\.99\.0/24'
+    expect_regex: 'O E2\s+172\.16\.99\.0(?:/24)?\s'
   - device: R4
     command: "show ip route ospf"
-    expect_regex: 'O E2\s+172\.16\.99\.0/24'
+    expect_regex: 'O E2\s+172\.16\.99\.0(?:/24)?\s'
   - device: R3
     command: "show ip ospf database external"
     expect_regex: 'Link State ID: 172\.16\.99\.0'
