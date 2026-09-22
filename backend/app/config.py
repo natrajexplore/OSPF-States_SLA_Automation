@@ -34,6 +34,7 @@ class Settings:
     monitor_enabled = os.getenv("OSPF_MONITOR", "true").lower() == "true"
     grafana_url = os.getenv("OSPF_GRAFANA_URL", "")
     kafka_ui_url = os.getenv("OSPF_KAFKA_UI_URL", "")
+    prometheus_url = os.getenv("OSPF_PROMETHEUS_URL", "")
 
     conn_timeout = int(os.getenv("OSPF_CONN_TIMEOUT", "15"))
     read_timeout = int(os.getenv("OSPF_READ_TIMEOUT", "30"))

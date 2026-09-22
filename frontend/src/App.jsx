@@ -5,6 +5,7 @@ import Scenarios from "./Scenarios.jsx";
 import Lab from "./Lab.jsx";
 import Learn from "./Learn.jsx";
 import Kafka from "./Kafka.jsx";
+import Prometheus from "./Prometheus.jsx";
 
 const TABS = [
   ["monitor", "Monitor"],
@@ -12,6 +13,7 @@ const TABS = [
   ["lab", "Lab"],
   ["learn", "Learn"],
   ["kafka", "Kafka"],
+  ["prometheus", "Prometheus"],
 ];
 
 export default function App() {
@@ -51,6 +53,7 @@ export default function App() {
         {tab === "lab" && <Lab cfg={cfg} />}
         {tab === "learn" && <Learn goToScenarios={goToScenarios} />}
         {tab === "kafka" && <Kafka cfg={cfg} />}
+        {tab === "prometheus" && <Prometheus cfg={cfg} />}
       </main>
     </>
   );

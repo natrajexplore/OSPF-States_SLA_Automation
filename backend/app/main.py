@@ -5,6 +5,7 @@ import json
 import re
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 
@@ -41,7 +42,22 @@ def health() -> dict:
 @app.get("/api/config")
 def public_config() -> dict:
     return {"grafana_url": settings.grafana_url, "kafka_ui_url": settings.kafka_ui_url,
-            "kafka_enabled": bool(settings.kafka_bootstrap), "poll_interval": settings.poll_interval}
+            "prometheus_url": settings.prometheus_url, "kafka_enabled": bool(settings.kafka_bootstrap),
+            "poll_interval": settings.poll_interval}
+
+
+@app.get("/api/prometheus/query")
+def prometheus_query(query: str) -> dict:
+    """Thin proxy for a PromQL instant query, so the browser doesn't need direct network access to
+    Prometheus (it runs on the Windows host; the UI is served from the EVE-NG VM)."""
+    if not settings.prometheus_url:
+        raise HTTPException(503, "OSPF_PROMETHEUS_URL is not set")
+    try:
+        r = httpx.get(f"{settings.prometheus_url}/api/v1/query", params={"query": query}, timeout=10.0)
+        r.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"Prometheus unreachable: {exc}")
+    return r.json()
 
 
 @app.get("/api/monitor/state")
