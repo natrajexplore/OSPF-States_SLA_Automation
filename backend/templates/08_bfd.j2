@@ -1,9 +1,11 @@
-{# BFD hello every 50 ms, declared down after 3 misses (~150 ms), and OSPF is told to tear down the adjacency when BFD drops. #}
+{# BFD hello every bfd_interval ms, declared down after bfd_multiplier misses, and OSPF is told to tear
+   down the adjacency when BFD drops. Timers are vars (see 08_bfd.yaml): 50ms is too fast for Dynamips
+   software emulation and wedges the IOS scheduler (see docs/lab.md) - use 500ms+ on emulated c7200s. #}
 interface {{ "Ethernet1/1" if target == "R3" else "Ethernet1/0" }}
 {% if rollback %}
  no ip ospf bfd
- no bfd interval 50 min_rx 50 multiplier 3
+ no bfd interval {{ bfd_interval }} min_rx {{ bfd_min_rx }} multiplier {{ bfd_multiplier }}
 {% else %}
- bfd interval 50 min_rx 50 multiplier 3
+ bfd interval {{ bfd_interval }} min_rx {{ bfd_min_rx }} multiplier {{ bfd_multiplier }}
  ip ospf bfd
 {% endif %}

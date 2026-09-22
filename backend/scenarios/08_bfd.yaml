@@ -1,13 +1,20 @@
 title: "BFD - sub-second failure detection on the R3-R4 link"
 concept: bfd
 summary: >
-  BFD (50 ms x 3) is enabled on the R3-R4 link and registered with OSPF. Without BFD a silent failure is
-  found only when the 40 s dead timer expires; with BFD the adjacency is torn down in about 150 ms.
+  BFD (500 ms x 3) is enabled on the R3-R4 link and registered with OSPF. Without BFD a silent failure is
+  found only when the 40 s dead timer expires; with BFD the adjacency is torn down in about 1.5 s.
   To measure it: after applying, run `shutdown` on R3 Ethernet1/1 from the console (the R4 side keeps
   link-up because the EVE bridge does not signal it), watch ospf_bfd_up and ospf_neighbor_state in
   Grafana and the IP SLA probe moving to the R2 path. Rollback removes BFD.
+  NOTE: on this image/host, enabling BFD reliably wedges the IOS scheduler regardless of interval - tested
+  broken at both 50 ms and 500 ms (see docs/lab.md). This is a platform defect, not something `vars` can
+  tune around; treat this scenario as unusable here. Real hardware would not hit this.
 template: 08_bfd.j2
 targets: [R3, R4]
+vars:
+  bfd_interval: 500
+  bfd_min_rx: 500
+  bfd_multiplier: 3
 settle_seconds: 30
 verify:
   - device: R4
