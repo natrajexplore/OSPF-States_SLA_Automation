@@ -368,10 +368,12 @@ The monitoring pipeline was confirmed live with real adjacency data. **Scenario 
 The 8 standalone lab folders reuse those verified configurations and scenarios; their `.unl` files have not yet been run through
 `labtool.sh`.
 
-The Live 3D, CLI and Credentials tabs, the Learn 3D views and the PuTTY scripts have been built and checked offline (production build,
-rendering in a headless browser against a mock API with the real lab files, the transcript and link-colour logic, a `putty-setup.ps1`
-dry run listing all 36 sessions). They have **not yet been run against the live EVE-NG lab**, and the PuTTY sessions have not been
-opened against the routers.
+The Live 3D, CLI and Credentials tabs, the Learn 3D views and the PuTTY sessions were checked against the live lab on 2026-09-27:
+`/api/graph` and `/api/credentials` answer on the deployed dashboard (36 routers, every login matching its baseline); Live 3D and
+Learn render with the real adjacency states; a rollback of scenario 01 run through the dashboard passed, and its real log produces
+the expected SSH transcript; the CLI endpoint reads the routers; `putty-setup.ps1` created the 36 sessions, the `ospfputty:` link
+opens the right PuTTY window, and the jump path through the VM reaches the routers' SSH server (`SSH-1.99-Cisco-1.25`).
+Not yet exercised: clicking **Apply** in the Live tab in an interactive browser session, and a full PuTTY login (the password step).
 
 ---
 
