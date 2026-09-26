@@ -1,0 +1,7 @@
+{# MTU mismatch: OSPF exchanges the interface MTU inside DBD packets during ExStart/Exchange. If R4 advertises a
+   smaller IP MTU than R3, the DBD is rejected as oversized and the adjacency stalls before Full - a classic
+   "hellos work, adjacency never completes" production incident, distinct from a hello/dead timer mismatch
+   (scenario 01). Field fix: match MTUs, or if that's impossible (e.g. an odd-MTU provider circuit),
+   `ip ospf mtu-ignore` skips the check entirely. #}
+interface {{ area1_link_r4_if }}
+ ip mtu {{ 1500 if rollback else 1300 }}

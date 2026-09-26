@@ -1,0 +1,18 @@
+title: "AREA MISMATCH - R4 moved to area 0 while R3 stays in area 1 on the same link"
+concept: area_mismatch
+summary: >
+  R4's side of the R3-R4 link is reassigned to area 0 while R3's side stays in area 1 (baseline), and R4's OSPF
+  process is cleared to force a fresh negotiation under the mismatch. OSPF requires both ends of a non-virtual
+  link to agree on area ID - a mismatch means Hellos are silently discarded and no adjacency ever forms, with
+  nothing in `show interface` to hint why. A very common real incident during area renumbering or a phased
+  area-boundary migration, where routers are moved to a new area one at a time instead of in a single coordinated
+  change. Rollback restores area 1 on R4's side.
+template: 11_area_mismatch.j2
+targets: [R4]
+post_commands:
+  - "clear ip ospf process"
+settle_seconds: 30
+verify:
+  - device: R3
+    command: "show ip ospf neighbor"
+    must_not_match: '10\.255\.0\.4\s+\d+\s+FULL'

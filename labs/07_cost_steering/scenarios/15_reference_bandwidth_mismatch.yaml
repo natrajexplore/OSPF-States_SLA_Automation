@@ -1,0 +1,17 @@
+title: "REFERENCE BANDWIDTH MISMATCH - R4 alone recalculates costs, silently diverging from R1/R2/R3"
+concept: reference_bandwidth_mismatch
+summary: >
+  `auto-cost reference-bandwidth` sets the divisor OSPF uses to turn interface bandwidth into cost
+  (cost = reference-bandwidth / interface-bandwidth). It must match on every router in the domain, but IOS does
+  not enforce that - it only logs a local warning, and every neighbor stays Full regardless. Raising it to
+  10000 Mbps on R4 alone (everyone else stays at the 100 Mbps default) silently changes R4's view of every link
+  cost without breaking a single adjacency. This is one of the most common real-world OSPF correctness bugs on
+  networks that mix sub-Gig links with Gig/10G ones, because the 100 Mbps IOS default can't tell a 1G link from a
+  10G one apart until this is raised network-wide - consistently. Rollback restores the 100 Mbps default on R4.
+template: 15_reference_bandwidth_mismatch.j2
+targets: [R4]
+settle_seconds: 15
+verify:
+  - device: R4
+    command: "show ip ospf"
+    expect_regex: 'Reference bandwidth unit is 10000 mbps'

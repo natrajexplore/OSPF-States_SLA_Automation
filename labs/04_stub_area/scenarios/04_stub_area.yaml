@@ -1,0 +1,24 @@
+title: "STUB AREA - area 1 becomes stub and the ABR injects a default route"
+concept: stub_area
+summary: >
+  All routers of area 1 (R2 and R3 the ABRs, and R4) are configured `area 1 stub`. The adjacency bounces because
+  the stub flag is negotiated in hellos, then R3 floods a default summary LSA into the area and R4
+  installs `O*IA 0.0.0.0/0`. Rollback removes the stub flag and the default route disappears.
+  (Combine with scenario 05: while area 1 is stub, R4 no longer sees the external E2 route.)
+template: 04_stub_area.j2
+targets: [R2, R3, R4]
+settle_seconds: 60
+verify:
+  - device: R4
+    command: "show ip route ospf"
+    expect_regex: 'O\*IA\s+0\.0\.0\.0/0'
+  - device: R3
+    command: "show ip ospf neighbor"
+    expect_regex: '10\.255\.0\.4\s+\d+\s+FULL'
+rollback_verify:
+  - device: R4
+    command: "show ip route ospf"
+    must_not_match: 'O\*IA\s+0\.0\.0\.0/0'
+  - device: R3
+    command: "show ip ospf neighbor"
+    expect_regex: '10\.255\.0\.4\s+\d+\s+FULL'

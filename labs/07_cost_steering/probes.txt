@@ -1,0 +1,3 @@
+R4|show ip route 10.255.0.1
+R4|show ip ospf interface brief
+R4|show ip ospf | include Reference

@@ -1,0 +1,3 @@
+{# The stub flag is part of the hello options: it must match on R3 (ABR) and R4 or the adjacency will not form. #}
+router ospf 1
+ {{ "no " if rollback else "" }}area 1 stub

@@ -1,0 +1,7 @@
+{# Hello/dead timers must match on both ends of a link or the routers never leave Down/Init. #}
+interface {{ area1_link_r4_if }}
+{% if rollback %}
+ ip ospf hello-interval 10
+{% else %}
+ ip ospf hello-interval 5
+{% endif %}

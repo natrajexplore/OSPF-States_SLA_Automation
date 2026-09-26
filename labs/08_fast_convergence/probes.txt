@@ -1,0 +1,3 @@
+R3|show ip ospf interface Ethernet1/1
+R4|show ip ospf interface Ethernet1/0
+R3|show ip ospf neighbor

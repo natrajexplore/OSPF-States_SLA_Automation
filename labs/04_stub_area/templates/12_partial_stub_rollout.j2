@@ -1,0 +1,6 @@
+{# The stub flag is negotiated in Hello packets per-area: every router attached to area 1 must agree, or hellos
+   are rejected as a parameter (E-bit) mismatch. Rolling this out to one router at a time - a common real
+   maintenance-window mistake - breaks that router's area-1 adjacency while its peers stay up, which is
+   confusing precisely because it looks like a partial, not total, outage. #}
+router ospf 1
+ {{ "no " if rollback else "" }}area 1 stub

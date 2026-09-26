@@ -1,0 +1,13 @@
+{# redistribute static (no 'subnets') only picks up statics that fall on a natural classful major-network
+   boundary. 172.16.199.0/24 is a subnet of the classful 172.16.0.0/16, so it gets silently dropped - the command
+   succeeds, nothing is logged, and the route just never shows up anywhere. One of the most-cited real OSPF
+   redistribution gotchas. #}
+{% if rollback %}
+router ospf 1
+ no redistribute static
+no ip route {{ bug_prefix }} {{ bug_mask }} Null0
+{% else %}
+ip route {{ bug_prefix }} {{ bug_mask }} Null0
+router ospf 1
+ redistribute static metric 20 metric-type 2
+{% endif %}

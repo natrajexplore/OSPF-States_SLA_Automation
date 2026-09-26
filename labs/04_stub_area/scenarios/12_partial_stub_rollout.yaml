@@ -1,0 +1,26 @@
+title: "PARTIAL STUB ROLLOUT - only R3 configured 'area 1 stub' breaks R3-R4 while R2-R4 stays up"
+concept: partial_stub_rollout
+summary: >
+  Same `area 1 stub` command as scenario 04, but applied to R3 only - not R2 and R4 together. R3's stub flag no
+  longer matches R4's (still non-stub) on their shared area-1 link, so that one adjacency drops while R2-R4 (also
+  area 1, but a completely separate physical link) stays FULL the whole time. This is the real-world danger of
+  staged/partial area-type changes during a maintenance window: the network doesn't go fully down, it degrades
+  asymmetrically, which is much harder to correlate to the change that caused it. Rollback removes the stub flag
+  from R3 alone.
+template: 12_partial_stub_rollout.j2
+targets: [R3]
+settle_seconds: 40
+verify:
+  - device: R3
+    command: "show ip ospf neighbor"
+    must_not_match: '10\.255\.0\.4\s+\d+\s+FULL'
+  - device: R2
+    command: "show ip ospf neighbor"
+    expect_regex: '10\.255\.0\.4\s+\d+\s+FULL'
+rollback_verify:
+  - device: R3
+    command: "show ip ospf neighbor"
+    expect_regex: '10\.255\.0\.4\s+\d+\s+FULL'
+  - device: R2
+    command: "show ip ospf neighbor"
+    expect_regex: '10\.255\.0\.4\s+\d+\s+FULL'
