@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { usePoll } from "./api.js";
 import { TOPICS, LEVELS } from "./learnContent.js";
+import { LEARN_LAB } from "./learnLab.js";
+import { liveState } from "./liveState.js";
+import Topo3D from "./Topo3D.jsx";
 
 const STORAGE_KEY = "ospf-learn-progress";
 
@@ -37,6 +41,57 @@ function Block({ b }) {
   if (b.ul) return <ul>{b.ul.map((li, i) => <li key={i}>{li}</li>)}</ul>;
   if (b.code) return <pre>{b.code}</pre>;
   return null;
+}
+
+/** The topic in the real lab: a packet flow in 3D (one caption per router) and the topic's OSPF parameters. */
+function InTheLab({ topicId, goToScenarios }) {
+  const lab = LEARN_LAB[topicId];
+  const { data: graph, error } = usePoll("/api/graph", 300000);
+  const { data: monitor } = usePoll("/api/monitor/state", 10000);
+  const [fi, setFi] = useState(0);
+  const [hop, setHop] = useState(0);
+  useEffect(() => { setFi(0); setHop(0); }, [topicId]);
+  const state = useMemo(() => liveState(graph, monitor, null), [graph, monitor]);
+  if (!lab) return null;
+  const flow = lab.flows[fi] || lab.flows[0];
+  const live = (monitor || []).some((m) => m.reachable);
+
+  return (
+    <section className="card">
+      <h3>
+        See it in the lab <span className="muted small">{live ? "live colours from the running lab" : "preview (lab not answering)"}</span>
+      </h3>
+      <div className="chips">
+        {lab.flows.map((f, i) => (
+          <button key={f.label} className={i === fi ? "" : "secondary"} onClick={() => { setFi(i); setHop(0); }}>{f.label}</button>
+        ))}
+      </div>
+      {error && <div className="alert bad">Backend: {error}</div>}
+      <div className="learn-3d">
+        <Topo3D graph={graph} state={state} highlight={flow.highlight}
+          trace={{ key: `${topicId}/${flow.label}`, path: flow.path, onHop: setHop }} height={380} />
+        <ol className="hops">
+          {flow.path.map((r, i) => (
+            <li key={i} className={i === hop ? "on" : ""}><b>{r}</b> {flow.captions[i]}</li>
+          ))}
+        </ol>
+      </div>
+      <p className="muted small">
+        {flow.scenario ? <>This is what scenario <code>{flow.scenario}</code> produces. </> : <>This is the lab at its baseline. </>}
+        Amber routers are the ones the scenario configures.{" "}
+        {flow.scenario && <button className="secondary small" onClick={() => goToScenarios?.(flow.scenario)}>Run {flow.scenario} →</button>}
+      </p>
+      <h4>Parameters of this topic</h4>
+      <table className="params">
+        <thead><tr><th>Parameter</th><th>Command</th><th>IOS default</th><th>Both ends must match?</th><th>In this lab</th><th>Changed by</th></tr></thead>
+        <tbody>
+          {lab.params.map(([name, cmd, def, match, val, sc]) => (
+            <tr key={name}><td><b>{name}</b></td><td><code>{cmd}</code></td><td>{def}</td><td>{match}</td><td>{val}</td><td>{sc}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
 }
 
 function Quiz({ quizKey, questions, passed, onPass, unlocksLabel }) {
@@ -169,6 +224,7 @@ export default function Learn({ goToScenarios }) {
           {topic[level].map((b, i) => <Block key={i} b={b} />)}
         </div>
       </section>
+      <InTheLab topicId={topicId} goToScenarios={goToScenarios} />
       {quiz && nextLevelLabel && (
         <Quiz
           quizKey={`${topicId}-${level}`}

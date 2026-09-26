@@ -60,3 +60,51 @@ details { margin: 4px 0; } summary { cursor: pointer; }
 .events li.critical { color: var(--bad); } .events li.warning { color: var(--warn); }
 .events time { color: var(--muted); margin-right: 8px; font-variant-numeric: tabular-nums; }
 @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } main { padding: 8px; } }
+
+/* 3D view (Topo3D.jsx): the scene has its own light/dark switch, independent of the page */
+.t3d { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #0b1017; }
+.t3d.light { background: #eef2f7; }
+.t3d-bar { display: flex; gap: 4px; justify-content: flex-end; padding: 6px; background: rgba(0,0,0,.25); flex-wrap: wrap; }
+.t3d.light .t3d-bar { background: rgba(0,0,0,.05); }
+.t3d-bar button { background: rgba(255,255,255,.08); color: #e6edf3; padding: 2px 10px; font-size: 12px; }
+.t3d.light .t3d-bar button { background: rgba(0,0,0,.06); color: #1b2733; }
+.t3d-bar button.on { background: var(--accent); color: #fff; }
+.t3d-canvas { position: relative; width: 100%; }
+.t3d-none { padding: 24px; color: #8b9bb0; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+.live-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; margin-bottom: 12px; }
+.live-grid .card { margin-bottom: 0; }
+tr.sel td { background: var(--code); }
+tr[class] td, .live-grid tbody tr { cursor: pointer; }
+.nowrap { white-space: nowrap; }
+button.small, .btn.small { padding: 2px 8px; font-size: 12px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 6px; }
+.dot.ok { background: var(--ok); } .dot.bad { background: var(--bad); }
+
+/* SSH / CLI transcripts */
+pre.ssh div { white-space: pre-wrap; }
+pre.ssh .t-ssh { color: var(--accent); font-weight: 600; margin-top: 6px; }
+pre.ssh .t-cfg { color: var(--fg); }
+pre.ssh .t-exec { color: var(--warn); }
+pre.ssh .t-show { color: var(--ok); }
+pre.ssh .t-err { color: var(--bad); }
+.cli-form { display: flex; gap: 6px; align-items: center; margin-top: 10px; }
+.cli-form input { flex: 1; min-width: 0; font: 13px ui-monospace, "Cascadia Mono", Consolas, monospace; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--code); color: var(--fg); }
+.cli-prompt { font: 600 13px ui-monospace, "Cascadia Mono", Consolas, monospace; }
+pre.cli-out { max-height: 520px; }
+
+/* Credentials */
+.filter { font: inherit; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--code); color: var(--fg); min-width: 200px; }
+.secret { display: inline-flex; gap: 4px; align-items: center; }
+details.card > summary { padding: 2px 0 8px; }
+
+/* Learn: the topic in the lab */
+.learn-3d { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; margin-top: 10px; }
+.hops { margin: 0; padding-left: 20px; font-size: 13px; }
+.hops li { padding: 6px 8px; border-radius: 6px; margin-bottom: 4px; }
+.hops li.on { background: var(--warn-bg); color: var(--fg); box-shadow: inset 3px 0 0 var(--warn); }
+table.params td { vertical-align: top; }
+
+@media (max-width: 900px) { .live-grid, .learn-3d { grid-template-columns: 1fr; } }

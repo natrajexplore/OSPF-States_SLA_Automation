@@ -9,7 +9,7 @@ import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 
-from . import bus, kafka_tail, monitor, scenarios
+from . import bus, kafka_tail, labinfo, monitor, scenarios
 from . import devices as dev_mod
 from .config import settings
 from .eveng import EveNGClient, EveNGError
@@ -131,6 +131,19 @@ def topology() -> dict:
     except EveNGError as exc:
         return {"nodes": nodes, "links": [], "warning": str(exc)}
     return {"nodes": nodes, "links": links}
+
+
+@app.get("/api/graph")
+def lab_graph() -> dict:
+    """Routers, tiers and links of the shared lab, for the 3D views (live state comes from /api/monitor/state)."""
+    return labinfo.graph()
+
+
+@app.get("/api/credentials")
+def credentials() -> dict:
+    """Login, password and enable secret of every router of every lab, checked against its baseline. Read by the
+    Credentials tab and scripts/putty-setup.ps1. Anyone who can open the dashboard can read them: fine for a private lab VM."""
+    return {"labs": labinfo.credentials()}
 
 
 _SHOW_ALLOWED = [re.compile(p) for p in (

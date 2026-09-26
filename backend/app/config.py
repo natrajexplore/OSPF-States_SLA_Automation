@@ -11,6 +11,8 @@ TEMPLATE_DIR = Path(os.getenv("OSPF_TEMPLATES", BASE_DIR / "templates"))
 SCENARIO_DIR = Path(os.getenv("OSPF_SCENARIOS", BASE_DIR / "scenarios"))
 BASELINE_DIR = Path(os.getenv("OSPF_BASELINE", BASE_DIR / "baseline"))
 RUNS_DIR = Path(os.getenv("OSPF_RUNS", BASE_DIR / "runs"))
+# the standalone labs (labs/NN_topic/): mounted at /app/labs in the container, ../labs when run from a checkout
+LABS_DIR = Path(os.getenv("OSPF_LABS_DIR", BASE_DIR / "labs" if (BASE_DIR / "labs").is_dir() else BASE_DIR.parent / "labs"))
 RUNS_DIR.mkdir(parents=True, exist_ok=True)
 
 
