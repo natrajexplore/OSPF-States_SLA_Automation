@@ -262,7 +262,7 @@ R4(config)#route-map LO1-ONLY permit 10
 R4(config-route-map)#match interface Loopback1
 R4(config)#router ospf 1
 R4(config-router)#area 1 nssa
-R4(config)#end
+R4(config-router)#end
 R4#write memory
 R1#show ip route ospf      ! after check
 ```

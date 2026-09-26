@@ -14,7 +14,7 @@ export function sshTranscript(lines, nodes) {
   let open = null, mode = "";
   const close = () => {
     if (!open) return;
-    out.push({ r: open, kind: "cfg", text: `${open}(config)#end` }, { r: open, kind: "exec", text: `${open}#write memory` });
+    out.push({ r: open, kind: "cfg", text: `${open}(${mode || "config"})#end` }, { r: open, kind: "exec", text: `${open}#write memory` });
     open = null;
   };
   for (const raw of lines) {
