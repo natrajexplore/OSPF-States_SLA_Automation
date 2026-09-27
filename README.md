@@ -432,3 +432,7 @@ monitoring/         Kafka exporter, Prometheus configuration and alerts, Grafana
 * [`docs/lab.md`](docs/lab.md): addressing, EVE-NG setup, the first-run checklist (and the BFD recovery procedure), adding a scenario
 * [`labs/README.md`](labs/README.md): the standalone labs, `labtool.sh`, one-lab-at-a-time rules, regenerating files
 * Each lab's `README.md` and `CONFIGS.md`
+
+## License
+
+[MIT](LICENSE)
