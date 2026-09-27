@@ -6,13 +6,13 @@ shows a before/after diff, while a live telemetry pipeline (Kafka, Prometheus, G
 
 | Part | What it is | Where |
 |---|---|---|
-| **Dashboard** | React UI: live OSPF monitor, 16 scenarios with Apply / Rollback and streamed logs, lab control, Learn, Kafka and Prometheus tabs | `http://<eve-vm>:8082` |
-| **Live 3D** | The lab in 3D with live adjacency colours; Apply / Rollback animates every SSH session (a beam per configuration line) next to the SSH / CLI transcript with the real IOS prompts | `#live`, [details](#live-3d-cli-credentials-and-putty) |
+| **Dashboard** | React UI: live OSPF monitor, 18 scenarios with Apply / Rollback and streamed logs, the Lab tab, Learn, Kafka and Prometheus tabs | `http://<eve-vm>:8082` |
+| **Lab tab (3D)** | The lab in 3D with live OSPFv2 or OSPFv3 adjacency colours; Apply / Rollback animates every SSH session (a beam per configuration line) next to the SSH / CLI transcript with the real IOS prompts | `#lab`, [details](#the-lab-tab-cli-credentials-and-putty) |
 | **CLI and Credentials tabs** | Any whitelisted `show` on any router with a kept transcript; every router's login, password and enable secret (hidden until Reveal) for all 9 labs | `#cli`, `#credentials` |
 | **PuTTY sessions** | One click on **SSH session** opens a router in its own PuTTY window, through the EVE VM (one-time `scripts\putty-setup.ps1`) | [PuTTY](#one-putty-window-per-router) |
-| **16 scenarios** | 8 OSPF concepts (01-08) and, for each, the production failure that belongs to it (09-16), as YAML + Jinja2 with apply and rollback | [`backend/scenarios/`](backend/scenarios/), [`backend/templates/`](backend/templates/) |
-| **8 standalone labs** | One folder per topic with a README, every router's configuration ready to paste, an EVE topology (`.unl` and `.zip`) and its two scenarios, driven by `labtool.sh` | [`labs/`](labs/) |
-| **Learn tab** | A course on 8 OSPF topics at three levels (Beginner, Pro, Expert), each level unlocked by a short quiz; every topic has a 3D packet flow through the lab and a table of its OSPF parameters | `http://<eve-vm>:8082/#learn` |
+| **18 scenarios** | 8 OSPF concepts (01-08) and, for each, the production failure that belongs to it (09-16), plus OSPFv3 for IPv6 (17-18), as YAML + Jinja2 with apply and rollback | [`backend/scenarios/`](backend/scenarios/), [`backend/templates/`](backend/templates/) |
+| **9 standalone labs** | One folder per topic with a README, every router's configuration ready to paste, an EVE topology (`.unl` and `.zip`) and its two scenarios, driven by `labtool.sh` | [`labs/`](labs/) |
+| **Learn tab** | A course on 9 OSPF topics (OSPFv3 included) at three levels (Beginner, Pro, Expert), each level unlocked by a short quiz; every topic has a 3D packet flow through the lab and a table of its OSPF parameters | `http://<eve-vm>:8082/#learn` |
 | **Monitoring** | Poller to Kafka to a Prometheus exporter, Grafana dashboard *OSPF SLA & States* and 7 alert rules | [`monitoring/`](monitoring/) |
 
 The design follows [BGP-Attributes-Executor-Automation_tools](https://github.com/natrajexplore/BGP-Attributes-Executor-Automation_tools):
@@ -25,12 +25,12 @@ and each topic also exists as a standalone lab folder.
 
 | I want to... | Go to |
 |---|---|
-| **Run a scenario** and watch OSPF react | the dashboard's **Live 3D** tab (3D + SSH transcript) or **Scenarios** tab, after the [Quick start](#quick-start) |
-| **Open a router in its own PuTTY window** | **SSH session** on Live 3D, CLI or Credentials, after a one-time [PuTTY setup](#one-putty-window-per-router) |
+| **Run a scenario** and watch OSPF react | the dashboard's **Lab** tab (3D + SSH transcript) or **Scenarios** tab, after the [Quick start](#quick-start) |
+| **Open a router in its own PuTTY window** | **SSH session** on the Lab, CLI or Credentials tabs, after a one-time [PuTTY setup](#one-putty-window-per-router) |
 | **Look up a router's login and enable secret** | the **Credentials** tab |
 | **Read a router without PuTTY** | the **CLI** tab (`#cli/R3` opens R3 and runs `show ip ospf neighbor`) |
 | **Learn** OSPF from the basics to production pitfalls | the dashboard's **Learn** tab: [Learn tab](#the-learn-tab) |
-| **Build one topic's lab by hand** on the router consoles | [`labs/<lab>/CONFIGS.md`](#the-8-standalone-labs) (every router's configuration, ready to paste) |
+| **Build one topic's lab by hand** on the router consoles | [`labs/<lab>/CONFIGS.md`](#the-9-standalone-labs) (every router's configuration, ready to paste) |
 | **Run one topic's lab with the tooling** (import, start, bootstrap, apply, rollback) | [`labs/labtool.sh`](labs/labtool.sh) and [`labs/README.md`](labs/README.md#running-a-lab) |
 | **Import a lab into the EVE-NG web UI** | the `.zip` in each lab folder (EVE's Import rejects a bare `.unl`) |
 | **Watch adjacencies in Grafana** | [Monitoring](#monitoring-kafka--prometheus--grafana) |
@@ -106,9 +106,10 @@ up in real incident reports. Every scenario has an apply and a rollback path wit
 | NSSA | **06** Area 1 NSSA; R4 injects Lo1 as type 7 (`O N2`), R3 translates it, R1 gets `O E2` | **14** `translate type7 always` on R2 silently takes translation away from R3, the elected translator | routes by type |
 | Cost / path selection | **07** `ip ospf cost 100` on R4 e1/0: the equal-cost paths to R1 collapse to the one through R2 | **15** `auto-cost reference-bandwidth 10000` on R4 only: costs diverge, every neighbor stays Full | interface cost, IP SLA latency |
 | Fast failure detection | **08** BFD on R3-R4 ⚠️ **wedges Dynamips, do not run** | **16** `dead-interval minimal hello-multiplier 4`: down in 1 s without BFD | neighbor state timeline |
+| **OSPFv3 (IPv6)** | **17** Dual stack: IPv6 + `ipv6 router ospf 1` on all routers, same areas and DR; link-local next hops, `OI` routes | **18** R4 on OSPFv3 instance 1, R3 on 0: the v3 R3-R4 adjacency drops, OSPFv2 on the same link stays FULL | Lab tab 3D in OSPFv3 mode |
 
 **Combining scenarios.** 04 (stub) and 06 / 14 (NSSA) are mutually exclusive; 03, 06 and 14 all use R4's Loopback1; 05 and 13 both
-configure `redistribute static` on R1. Roll one back before applying the other.
+configure `redistribute static` on R1. Roll one back before applying the other. 18 needs 17 applied first; rolling back 17 removes all IPv6.
 
 **Scenario 08 does not work on this platform.** Enabling BFD (at 50 ms and at 500 ms x 3) reliably wedges the IOS scheduler of
 `c7200-adventerprisek9-mz.152-4.S6` under Dynamips: `%SCHED-5-INT_DISABLED_BEFORE_PREEMPTION` at the same internal address, then no
@@ -116,11 +117,29 @@ SSH, ping or console. It is a platform defect, not a configuration problem; real
 alternative. Failure signature and recovery: [`docs/lab.md`](docs/lab.md#first-run-checklist).
 
 Add your own: [`docs/lab.md`](docs/lab.md#adding-a-scenario). Planned next: totally stubby areas, summarisation, virtual links,
-authentication, OSPFv3.
+authentication, OSPFv3 area types (stub / NSSA for IPv6).
+
+### OSPFv3 (scenarios 17-18)
+
+IPv6 addressing mirrors IPv4: the LAN is 2001:db8:123::/64 (area 0), R3-R4 is 2001:db8:34::/64 and R2-R4 is 2001:db8:24::/64 (area 1,
+point-to-point), and each router has a /128 loopback 2001:db8:255::N. Router IDs are the same 10.255.0.N. The baseline is IPv4-only;
+scenario 17 adds everything (classic `ipv6 router ospf 1` syntax) and its rollback removes it. Captured from the lab after 17:
+
+```
+R1# show ipv6 route ospf
+OI  2001:DB8:255::4/128 [110/20]
+     via FE80::C803:E0FF:FEC7:1C, Ethernet1/0
+     via FE80::C802:24FF:FE24:1C, Ethernet1/0
+```
+
+Next hops are link-local; R3 is DR on the LAN as with IPv4; `show ipv6 ospf database` shows the Link (type 8) and Intra-Area-Prefix
+(type 9) LSAs that carry addresses in OSPFv3. Scenario 18 shows that the two protocols are independent: an instance-ID mismatch breaks
+only OSPFv3. The monitor reads `show ipv6 ospf neighbor` on every poll, the Lab tab's **OSPFv3 (IPv6)** switch colours the 3D links by
+OSPFv3 adjacencies, and the CLI tab accepts `show ipv6 ospf …` and `show ipv6 route …`. The standalone version is [`labs/09_ospfv3`](labs/09_ospfv3/README.md).
 
 ---
 
-## The 8 standalone labs
+## The 9 standalone labs
 
 Each topic also exists as a self-contained folder in [`labs/`](labs/), pairing its concept scenario with its production failure.
 A folder holds a `README.md` (use case, topology, commands, what you should see, production notes), a generated **`CONFIGS.md`**
@@ -137,6 +156,7 @@ A folder holds a `README.md` (use case, topology, commands, what you should see,
 | **06** NSSA | Type 7 to type 5; translator takeover | `06_nssa`, `14_dual_nssa_translator` | [README](labs/06_nssa/README.md) · [configs](labs/06_nssa/CONFIGS.md) · [.zip](labs/06_nssa/06_nssa.zip) |
 | **07** Cost | Steering by cost; reference-bandwidth mismatch | `07_cost_steering`, `15_reference_bandwidth_mismatch` | [README](labs/07_cost_steering/README.md) · [configs](labs/07_cost_steering/CONFIGS.md) · [.zip](labs/07_cost_steering/07_cost_steering.zip) |
 | **08** Fast convergence | Fast hellos; BFD for reference only | `08_bfd`, `16_fast_hello_no_bfd` | [README](labs/08_fast_convergence/README.md) · [configs](labs/08_fast_convergence/CONFIGS.md) · [.zip](labs/08_fast_convergence/08_fast_convergence.zip) |
+| **09** OSPFv3 | IPv6 dual stack beside OSPFv2; instance-ID mismatch | `17_ospfv3_dual_stack`, `18_ospfv3_instance_mismatch` | [README](labs/09_ospfv3/README.md) · [configs](labs/09_ospfv3/CONFIGS.md) · [.zip](labs/09_ospfv3/09_ospfv3.zip) |
 
 The labs reuse the shared lab's four routers, addressing and baselines, so their scenarios are the ones already verified there. The
 standalone `.unl` files have not yet been run through `labtool.sh` on EVE-NG; see [`labs/README.md`](labs/README.md) for status.
@@ -217,25 +237,25 @@ UI development: `cd frontend && npm install && VITE_API=http://<eve-vm>:8010 npm
 | Tab | Address | What it is for |
 |---|---|---|
 | **Monitor** | `#monitor` | Per-router neighbors and states, DR/BDR roles, routes by type, BFD and IP SLA, and a live event feed (SSE) |
-| **Live 3D** | `#live` | The lab in 3D with live adjacency colours, Apply / Rollback with SSH beams, the SSH / CLI transcript, and the EVE-NG and SSH card (**SSH session**, **CLI tab**) |
+| **Lab** | `#lab` (old `#live` links still work) | The lab in 3D with live OSPFv2 / OSPFv3 adjacency colours, Apply / Rollback and **Reset lab to baseline** with SSH beams, the SSH / CLI transcript, and the router table (EVE-NG state, console port, SSH address, v2 / v3 neighbors) and SSH card (**SSH session**, **CLI tab**) |
 | **Scenarios** | `#scenarios` | Apply / Rollback with a streamed log, PASS / FAIL per check, and before/after diffs |
 | **CLI** | `#cli`, `#cli/R3` | Whitelisted read-only `show` commands on any router, with a per-router transcript |
 | **Lab** | `#lab` | Devices and their EVE-NG state, **Reset lab to baseline**, Grafana link |
-| **Credentials** | `#credentials` | Login, password and enable secret of the 36 routers of the 9 labs, checked against their baselines, with **SSH session** buttons |
+| **Credentials** | `#credentials` | Login, password and enable secret of the 40 routers of the 10 labs, checked against their baselines, with **SSH session** buttons |
 | **Learn** | `#learn` | The OSPF course with 3D packet flows and parameter tables, see below |
 | **Kafka** | `#kafka` | The live stream of the three OSPF topics, and a link to Kafka UI |
 | **Prometheus** | `#prometheus` | Live panels from Prometheus: router reachability, full adjacencies, interface cost, IP SLA, BFD |
 
 ### The Learn tab
 
-Eight topics: OSPF fundamentals, DR/BDR election, areas, stub and NSSA areas, external routes and redistribution, cost and path
+Nine topics: OSPF fundamentals, DR/BDR election, areas, stub and NSSA areas, external routes and redistribution, cost and path
 selection, fast convergence, and monitoring. Each topic has three levels, **Beginner**, **Pro** and **Expert**; passing the short
 quiz at the end of a level unlocks the next one for that topic. Topics link to their scenarios in the Scenarios tab. Progress is
 kept in your browser only.
 
 Every topic also has a **See it in the lab** section, at every level:
 
-* **A 3D packet flow** through the real lab (the same view as Live 3D, with live colours when the lab runs). A packet follows a path
+* **A 3D packet flow** through the real lab (the same view as the Lab tab, with live colours when the lab runs). A packet follows a path
   along the lab's links and stops at each router with a caption for that hop; the routers a scenario configures glow amber. Each topic
   has several flows: the baseline and what each of its scenarios changes. For example NSSA: R4's type-7 LSA → R3 translates it → R1
   installs `O E2`, and the takeover of scenario 14 where the same LSA goes through R2 instead.
@@ -244,12 +264,13 @@ Every topic also has a **See it in the lab** section, at every level:
   external metric and type, cost, reference bandwidth, fast hellos, BFD, IP SLA). Paths and tables are in
   [`frontend/src/learnLab.js`](frontend/src/learnLab.js).
 
-### Live 3D, CLI, Credentials and PuTTY
+### The Lab tab, CLI, Credentials and PuTTY
 
-**Live 3D** (`#live`) draws the shared lab: R1 on top, the ABRs R2 and R3 in the middle, R4 below, the area-0 and area-1 volumes (the
+The **Lab** tab (`#lab`; it replaces the former Lab and Live 3D tabs) draws the shared lab: R1 on top, the ABRs R2 and R3 in the middle, R4 below, the area-0 and area-1 volumes (the
 ABRs sit in both), the broadcast segment as a hub, and the SSH executor (the backend). Colours come from the monitor every 5 s: a link
 end is green when the adjacency is FULL (or 2-WAY between DROTHERs), amber while it forms (INIT, EXSTART…), red when the neighbor is
-lost; a router's ring is red when it stops answering. Orbit, zoom, **Rotate**, **Names**, **Light / Dark** (the 3D scene only, remembered
+lost; a router's ring is red when it stops answering. The **OSPFv2 (IPv4) / OSPFv3 (IPv6)** switch above the view chooses which
+protocol's adjacencies colour the links (OSPFv3 links stay grey until scenario 17 is applied). Orbit, zoom, **Rotate**, **Names**, **Light / Dark** (the 3D scene only, remembered
 in the browser) and **Reset view**. Click a router to filter the transcript to it.
 
 Pick a scenario and click **Apply** or **Rollback**: the target routers glow, each SSH session starts with a pulse, and each
@@ -276,11 +297,11 @@ PuTTY window) and **CLI tab** (opens `#cli/<router>` and runs `show ip ospf neig
 **CLI** (`#cli`) runs any command the backend allows (`show ip ospf …`, `show ip route …`, `show ip sla statistics`, `show bfd neighbors`,
 `show running-config | section router ospf`) with one-click shortcuts, and keeps a transcript per router while the page is open.
 
-**Credentials** (`#credentials`) lists the 36 routers of the shared lab and the 8 standalone labs: SSH address, user, password and
+**Credentials** (`#credentials`) lists the 40 routers of the shared lab and the 9 standalone labs: SSH address, user, password and
 enable secret, hidden until **Reveal** (or **Reveal all**), with **Copy** and **SSH session**. Values come from each lab's
 `inventory.yaml` (then `.env`), and each row says whether they match the `username` and `enable secret` lines of the router's baseline.
 The dots only hide the values on screen: `GET /api/credentials` returns them to anyone who can open the dashboard, which is fine for a
-private lab VM and worth remembering before exposing it. Today all 36 are `lab` / `lab123` / `lab123`.
+private lab VM and worth remembering before exposing it. Today all 40 are `lab` / `lab123` / `lab123`.
 
 ### One PuTTY window per router
 
@@ -293,7 +314,7 @@ powershell -ExecutionPolicy Bypass -File scripts\putty-setup.ps1 -Server http://
 powershell -ExecutionPolicy Bypass -File scripts\putty-setup.ps1 -Uninstall
 ```
 
-* It reads the router list from `GET /api/credentials` and creates **36 saved sessions** named `OSPF <lab> <router>` (for example
+* It reads the router list from `GET /api/credentials` and creates **40 saved sessions** named `OSPF <lab> <router>` (for example
   `OSPF shared R3`, `OSPF 06_nssa R4`), user `lab`, and registers the `ospfputty:` link. Run it again when labs are added.
 * The management addresses 192.168.99.11-14 exist only inside the EVE VM, so each session goes **through the VM** with the Windows
   OpenSSH client (`ssh.exe -W %host:%port root@<eve-vm>`; change the user with `-JumpUser`). You need key login from your PC to the VM.
@@ -347,6 +368,9 @@ poller (20 s)  ────────────┴─> Kafka :9094 ─> expo
 | `ospf.neighbor.snapshots` | Every poll: neighbors, interfaces (DR/BDR, cost, area), route counts by type, IP SLA |
 | `ospf.config.changes` | Every scenario apply and rollback, and every baseline push |
 
+The poller reads each router in one SSH session per poll (OSPFv2 and OSPFv3 neighbors, interfaces, routes, BFD, IP SLA). OSPFv3
+neighbors are shown in the dashboard but are not yet published as events or metrics: the Kafka topics and Prometheus series below are OSPFv2.
+
 **Metrics:** `ospf_neighbor_state` (0 Down to 7 Full), `ospf_neighbor_full`, `ospf_interface_role`, `ospf_interface_cost`,
 `ospf_routes{type}`, `ospf_sla_rtt_milliseconds`, `ospf_sla_up`, `ospf_bfd_up`, `ospf_router_reachable`,
 `ospf_neighbor_transitions_total`, `ospf_neighbor_lost_total`, `ospf_interface_role_changes_total`, `ospf_config_changes_total`.
@@ -365,7 +389,7 @@ watch the R3-R4 adjacency drop in the neighbor state timeline, the event in the 
 Run end-to-end against real EVE-NG / Dynamips routers and a live Kafka / Grafana stack: lab import, `bootstrap.py`,
 `push_baseline.py`, `healthcheck.py`, full OSPF convergence, and scenarios **01-07 and 09-16** (apply and rollback) all pass.
 The monitoring pipeline was confirmed live with real adjacency data. **Scenario 08 (BFD) does not work on this platform** (see above).
-The 8 standalone lab folders reuse those verified configurations and scenarios; their `.unl` files have not yet been run through
+The standalone lab folders reuse those verified configurations and scenarios; their `.unl` files have not yet been run through
 `labtool.sh`.
 
 The Live 3D, CLI and Credentials tabs, the Learn 3D views and the PuTTY sessions were checked against the live lab on 2026-09-27:
@@ -388,7 +412,7 @@ backend/
   baseline/         full per-router IOS configurations of the shared lab
   scripts/          build_lab.py, bootstrap.py, push_baseline.py, run_scenario.py, healthcheck.py
   inventory.yaml    devices, management IPs, router IDs, links, EVE node settings, template variables
-frontend/           React UI served by nginx: Monitor, Live 3D, Scenarios, CLI, Lab, Credentials, Learn, Kafka, Prometheus
+frontend/           React UI served by nginx: Monitor, Lab (3D), Scenarios, CLI, Credentials, Learn, Kafka, Prometheus
   src/topo3d.js     the Three.js scene (loaded on demand); Topo3D.jsx wraps it; liveState.js turns the monitor into colours
   src/learnLab.js   Learn tab: 3D packet flows and parameter tables per topic
 labs/

@@ -2,7 +2,7 @@
 
 ## The shared lab
 
-`ospf-sla.unl` is the 4-router lab the dashboard runs all 16 scenarios on. It is generated from
+`ospf-sla.unl` is the 4-router lab the dashboard runs all 18 scenarios on. It is generated from
 [`backend/inventory.yaml`](../backend/inventory.yaml) by `backend/scripts/build_lab.py`; its configurations are in
 [`backend/baseline/`](../backend/baseline/). Topology and addressing: [`docs/lab.md`](../docs/lab.md).
 
@@ -22,6 +22,7 @@ dashboard.
 | [`06_nssa/`](06_nssa/) | NSSA type-7 to type-5 translation, and a translator takeover with `translate type7 always` | `06_nssa`, `14_dual_nssa_translator` | Scenarios pass on the shared lab |
 | [`07_cost_steering/`](07_cost_steering/) | Steering traffic by cost (ECMP to a single path), and a reference-bandwidth mismatch | `07_cost_steering`, `15_reference_bandwidth_mismatch` | Scenarios pass on the shared lab |
 | [`08_fast_convergence/`](08_fast_convergence/) | Sub-second failure detection with fast hellos; BFD for reference only | `08_bfd`, `16_fast_hello_no_bfd` | `16` passes; **`08` wedges Dynamips, do not run** |
+| [`09_ospfv3/`](09_ospfv3/) | OSPFv3 for IPv6 beside OSPFv2 (link-local neighbors, LSA types 8 and 9), and an OSPFv3 instance-ID mismatch | `17_ospfv3_dual_stack`, `18_ospfv3_instance_mismatch` | Both pass on the shared lab (run 2026-09-27); README has the captured output |
 
 **What "Status" means.** Every lab uses the same four routers, addressing and baseline configurations as the shared lab, and the
 same scenario files. All scenarios except `08_bfd` have passed apply and rollback against the shared lab on EVE-NG. The standalone

@@ -52,6 +52,13 @@ def show(dev: Device, command: str, use_textfsm: bool = False) -> str:
         return c.send_command(command, use_textfsm=use_textfsm, read_timeout=settings.read_timeout)
 
 
+def show_many(dev: Device, commands: list[str]) -> list[str]:
+    """Several read-only commands in one SSH session (the monitor's poll: one login per router instead of one per command)."""
+    with _connect(dev) as c:
+        c.enable()
+        return [c.send_command(cmd, read_timeout=settings.read_timeout) for cmd in commands]
+
+
 def exec_cmd(dev: Device, command: str) -> str:
     """Exec-mode command; answers IOS confirmation prompts (e.g. `clear ip ospf process`)."""
     with _connect(dev) as c:

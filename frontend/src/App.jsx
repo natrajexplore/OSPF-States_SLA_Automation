@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { usePoll } from "./api.js";
 import Monitor from "./Monitor.jsx";
-import Live from "./Live.jsx";
 import Scenarios from "./Scenarios.jsx";
 import Cli from "./Cli.jsx";
 import Lab from "./Lab.jsx";
@@ -12,19 +11,19 @@ import Prometheus from "./Prometheus.jsx";
 
 const TABS = [
   ["monitor", "Monitor"],
-  ["live", "Live 3D"],
+  ["lab", "Lab"],
   ["scenarios", "Scenarios"],
   ["cli", "CLI"],
-  ["lab", "Lab"],
   ["credentials", "Credentials"],
   ["learn", "Learn"],
   ["kafka", "Kafka"],
   ["prometheus", "Prometheus"],
 ];
 
-// #tab or #tab/arg (for example #cli/R3)
+// #tab or #tab/arg (for example #cli/R3); #live is the old name of the Lab tab
 const parseHash = () => {
-  const [t, arg] = location.hash.slice(1).split("/");
+  const [raw, arg] = location.hash.slice(1).split("/");
+  const t = raw === "live" ? "lab" : raw;
   return { tab: TABS.some(([id]) => id === t) ? t : "monitor", arg: arg || null };
 };
 
@@ -67,10 +66,9 @@ export default function App() {
       </header>
       <main>
         {tab === "monitor" && <Monitor />}
-        {tab === "live" && <Live goToCli={(r) => go("cli", r)} />}
         {tab === "scenarios" && <Scenarios focus={scenarioFocus} />}
         {tab === "cli" && <Cli router={arg} key={arg || "cli"} />}
-        {tab === "lab" && <Lab cfg={cfg} />}
+        {tab === "lab" && <Lab cfg={cfg} goToCli={(r) => go("cli", r)} />}
         {tab === "credentials" && <Credentials />}
         {tab === "learn" && <Learn goToScenarios={goToScenarios} />}
         {tab === "kafka" && <Kafka cfg={cfg} />}

@@ -51,15 +51,22 @@ function InTheLab({ topicId, goToScenarios }) {
   const [fi, setFi] = useState(0);
   const [hop, setHop] = useState(0);
   useEffect(() => { setFi(0); setHop(0); }, [topicId]);
-  const state = useMemo(() => liveState(graph, monitor, null), [graph, monitor]);
+  const af = lab?.af || "v4";
+  const state = useMemo(() => liveState(graph, monitor, null, af), [graph, monitor, af]);
   if (!lab) return null;
   const flow = lab.flows[fi] || lab.flows[0];
   const live = (monitor || []).some((m) => m.reachable);
+  const v6Up = (monitor || []).some((m) => m.neighbors_v6?.length);
 
   return (
     <section className="card">
       <h3>
-        See it in the lab <span className="muted small">{live ? "live colours from the running lab" : "preview (lab not answering)"}</span>
+        See it in the lab{" "}
+        <span className="muted small">
+          {!live ? "preview (lab not answering)" : af === "v6"
+            ? (v6Up ? "live OSPFv3 adjacencies" : "OSPFv3 is not running: links stay grey until 17_ospfv3_dual_stack is applied")
+            : "live colours from the running lab"}
+        </span>
       </h3>
       <div className="chips">
         {lab.flows.map((f, i) => (

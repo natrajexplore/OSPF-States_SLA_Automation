@@ -625,6 +625,105 @@ export const TOPICS = [
     ],
   },
   {
+    id: "ospfv3",
+    title: "OSPFv3 for IPv6",
+    blurb: "The same link-state design for IPv6 - run per link, from link-local addresses, with addresses moved out of the topology LSAs.",
+    scenarios: ["17_ospfv3_dual_stack", "18_ospfv3_instance_mismatch"],
+    quizzes: {
+      beginner: [
+        { q: "What is OSPFv3 for?", options: [
+          "Routing IPv6 with the OSPF design you already know: areas, DR/BDR, SPF, cost",
+          "A faster version of OSPFv2 for IPv4 only",
+          "A replacement for BGP between companies",
+          "Encrypting OSPFv2 packets",
+        ], correct: 0, explain: "OSPFv3 (RFC 5340) keeps OSPF's areas, neighbor states, DR/BDR election and SPF, and carries IPv6 prefixes." },
+        { q: "In this lab, how is OSPFv3 turned on for an interface?", options: [
+          "`network 2001:db8:123::/64 area 0` under the process",
+          "`ipv6 ospf 1 area 0` on the interface itself",
+          "It is automatic once IPv6 is enabled",
+          "`ip ospf 1 area 0`",
+        ], correct: 1, explain: "Classic IOS OSPFv3 has no network statements: each interface joins with `ipv6 ospf <process> area <id>`." },
+        { q: "After scenario 17, R1's route to 2001:db8:255::4/128 has a next hop starting with FE80::. Why?", options: [
+          "It is a misconfiguration",
+          "OSPFv3 neighbors talk from their link-local addresses, so next hops are link-local",
+          "FE80:: means the route is unreachable",
+          "R4 has no global IPv6 address",
+        ], correct: 1, explain: "OSPFv3 runs per link and uses the neighbor's link-local address as the source and the next hop; the global prefixes are just advertised." },
+      ],
+      pro: [
+        { q: "Which LSA carries a router's IPv6 prefixes inside its own area?", options: [
+          "The Router LSA (type 1), like in OSPFv2", "The Intra-Area-Prefix LSA (type 9)", "The Network LSA (type 2)", "The AS-External LSA (type 5)",
+        ], correct: 1, explain: "In OSPFv3, Router and Network LSAs describe topology only; prefixes moved to Intra-Area-Prefix LSAs (type 9). Link LSAs (type 8) carry the link-local address." },
+        { q: "What does the OSPFv3 router ID look like?", options: [
+          "A 128-bit IPv6 address", "A 32-bit number written like an IPv4 address (10.255.0.4 here)", "The MAC address", "The link-local address",
+        ], correct: 1, explain: "Still 32 bits. A router with no IPv4 address must be given one with `router-id`, or the OSPFv3 process does not start." },
+        { q: "In scenario 18, why does OSPFv2 on R3-R4 stay FULL while OSPFv3 drops?", options: [
+          "OSPFv2 and OSPFv3 are separate protocols with separate adjacencies; the Instance ID only exists in OSPFv3",
+          "OSPFv2 ignores all errors",
+          "The Instance ID is also changed for OSPFv2, but it recovers faster",
+          "OSPFv2 uses BFD",
+        ], correct: 0, explain: "Dual stack means two independent link-state protocols over the same wire. A v3-only mismatch breaks only v3; IPv6 then takes the R2 path." },
+      ],
+    },
+    beginner: [
+      "OSPFv3 is OSPF for IPv6. Everything you learned in the other topics still applies: areas and ABRs, the neighbor states " +
+        "from Down to Full, DR/BDR on broadcast segments, cost and SPF. What changes is how it is attached to interfaces and how it " +
+        "carries addresses.",
+      "It is switched on per interface, not with network statements. In this lab (scenario 17) every router gets " +
+        "`ipv6 unicast-routing`, a process `ipv6 router ospf 1` with `router-id 10.255.0.x`, and on each interface an IPv6 address " +
+        "plus `ipv6 ospf 1 area <id>`. The design mirrors IPv4: the 2001:db8:123::/64 LAN in area 0, the R4 links in area 1, a /128 loopback per router.",
+      "The first thing you notice in the routing table: the next hops are link-local, for example " +
+        "`OI 2001:DB8:255::4/128 [110/20] via FE80::C803:E0FF:FEC7:1C, Ethernet1/0` on R1. OSPFv3 routers talk to each other from their " +
+        "FE80:: link-local addresses (to the multicast groups FF02::5, all OSPF routers, and FF02::6, DR and BDR).",
+      "`OI` is an inter-area route (IPv4 shows `O IA`); `O` is intra-area. The lab shows the same DR election as IPv4: with the same " +
+        "priorities, R3 is DR on the LAN (`show ipv6 ospf neighbor` on R3 lists R1 as FULL/DROTHER and R2 as FULL/BDR).",
+      {
+        code: "R3# show ipv6 ospf neighbor\n" +
+          "Neighbor ID     Pri   State           Dead Time   Interface ID    Interface\n" +
+          "10.255.0.1        1   FULL/DROTHER    00:00:34    3               Ethernet1/0\n" +
+          "10.255.0.2       50   FULL/BDR        00:00:39    3               Ethernet1/0\n" +
+          "10.255.0.4        0   FULL/  -        00:00:32    3               Ethernet1/1",
+      },
+    ],
+    pro: [
+      { h: "What OSPFv3 changed" },
+      {
+        ul: [
+          "Per link, not per subnet: neighbors form over a link even if they share no global prefix, and Hellos carry no subnet mask.",
+          "Link-local sources and next hops; the router ID stays a 32-bit number (set it by hand when the router has no IPv4 address).",
+          "Addresses left the topology LSAs: Router (type 1) and Network (type 2) LSAs describe only who connects to whom.",
+          "Two new LSAs: Link LSA (type 8, link-local flooding: the router's link-local address and prefixes on that link) and " +
+            "Intra-Area-Prefix LSA (type 9: the prefixes of a router or transit network in the area).",
+          "Summary LSAs were renamed: Inter-Area-Prefix (type 3) and Inter-Area-Router (type 4).",
+          "An Instance ID in every packet header lets several OSPFv3 instances share one link; both ends must use the same one.",
+          "No authentication fields of its own: IPv6 IPsec (`ipv6 ospf authentication ipsec …`) or the later authentication trailer.",
+        ],
+      },
+      "All of this is visible in `show ipv6 ospf database` on R3 after scenario 17: Router and Net Link States with no prefixes, " +
+        "Link (Type-8) Link States per interface, Intra Area Prefix Link States, and Inter Area Prefix Link States for " +
+        "2001:DB8:255::4/128 from both ABRs, 10.255.0.2 and 10.255.0.3.",
+      "Scenario 18 is the OSPFv3-only failure: R4 puts its R3-facing interface in instance 1 (`ipv6 ospf 1 area 1 instance 1`) " +
+        "while R3 stays in instance 0. Each side discards the other's packets, so the OSPFv3 R3-R4 adjacency disappears with no " +
+        "interface error, and IPv6 quietly moves to the R2 path. OSPFv2 on the same wire is a different protocol and stays FULL. " +
+        "`show ipv6 ospf interface Ethernet1/0` shows `Instance ID 1` on R4.",
+    ],
+    expert: [
+      "Separating topology (types 1 and 2) from addressing (types 8 and 9) means a prefix change on a link no longer changes the " +
+        "Router LSA, so it no longer forces a full SPF: only the prefix computation reruns. It also lets one link carry several " +
+        "prefixes, or none (an IPv6 link can run on link-local addresses alone).",
+      "The Instance ID (8 bits) was generalised by RFC 5838 into address families: instance ranges 0-31 for IPv6 unicast, 32-63 " +
+        "for IPv6 multicast, 64-95 for IPv4 unicast and 96-127 for IPv4 multicast. That is how the newer IOS model " +
+        "(`router ospfv3 1` with `address-family ipv6` and `address-family ipv4`, and `ospfv3 1 ipv6 area 0` on interfaces) can run " +
+        "IPv4 over OSPFv3 as well. This lab uses the classic `ipv6 router ospf` syntax; the concepts are the same.",
+      "Dual stack doubles the control plane: two processes, two databases, two SPF runs, two sets of Hellos per link. Timers, " +
+        "cost, reference bandwidth, stub or NSSA settings and passive interfaces are configured separately for each, and drift " +
+        "between them (an area type set for IPv4 but not IPv6, a cost changed on one only) makes IPv4 and IPv6 take different " +
+        "paths through the same network: the kind of problem that shows up as \"IPv6 is slow\" rather than as an outage.",
+      "Operationally, watch both: this dashboard's Lab tab can colour the 3D links by OSPFv2 or OSPFv3 adjacencies (the monitor " +
+        "reads `show ipv6 ospf neighbor` on every poll), and the CLI tab accepts the `show ipv6 ospf …` and `show ipv6 route …` commands.",
+    ],
+  },
+  {
     id: "monitoring",
     title: "IP SLA & Operational Monitoring",
     blurb: "Measuring the network, not just routing through it - and how that data leaves the router.",

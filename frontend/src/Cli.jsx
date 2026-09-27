@@ -3,7 +3,7 @@ import { api, usePoll } from "./api.js";
 import { puttyHref } from "./liveState.js";
 
 // Read-only CLI: any whitelisted `show` on one router, through GET /api/devices/{name}/show (the backend refuses anything
-// else). Opened from the Live tab's "CLI tab" button as #cli/<router>, which also runs `show ip ospf neighbor`.
+// else). Opened from the Lab tab's "CLI tab" button as #cli/<router>, which also runs `show ip ospf neighbor`.
 const COMMANDS = [
   "show ip ospf neighbor",
   "show ip ospf interface brief",
@@ -19,6 +19,13 @@ const COMMANDS = [
   "show ip route 10.255.0.1",
   "show ip sla statistics",
   "show running-config | section router ospf",
+  // OSPFv3 (after scenario 17)
+  "show ipv6 ospf neighbor",
+  "show ipv6 ospf interface brief",
+  "show ipv6 route ospf",
+  "show ipv6 ospf database",
+  "show ipv6 ospf",
+  "show ipv6 interface brief",
 ];
 const transcripts = {};                     // router -> [{cmd, out, err, at}], kept while the page is open
 
@@ -85,12 +92,12 @@ export default function Cli({ router: initial }) {
           <button disabled={busy || !router}>{busy ? "Running…" : "Run"}</button>
         </form>
         <div className="chips">
-          {COMMANDS.slice(0, 6).map((c) => (
+          {[...COMMANDS.slice(0, 6), "show ipv6 ospf neighbor", "show ipv6 route ospf"].map((c) => (
             <button key={c} className="secondary small" disabled={busy || !router} onClick={() => { setCmd(c); run(c); }}>{c.replace("show ", "")}</button>
           ))}
         </div>
         <p className="muted small">
-          Allowed: <code>show ip ospf …</code>, <code>show ip route …</code>, <code>show ip sla statistics</code>, <code>show bfd neighbors</code>,
+          Allowed: <code>show ip ospf …</code>, <code>show ip route …</code>, <code>show ipv6 ospf …</code>, <code>show ipv6 route …</code>, <code>show ip sla statistics</code>, <code>show bfd neighbors</code>,
           <code>show running-config | section router ospf</code>. Anything else is refused by the backend. For configuration, use a PuTTY session.
           {dev && <> SSH address <code>{dev.mgmt_ip}</code>.</>}
         </p>

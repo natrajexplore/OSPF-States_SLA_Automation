@@ -1,0 +1,63 @@
+title: "OSPFv3 - IPv6 dual stack: the same areas, DR/BDR and ABRs, running beside OSPFv2"
+concept: ospfv3
+summary: >
+  Adds IPv6 to every router and runs OSPFv3 (classic `ipv6 router ospf 1`) beside the existing OSPFv2, with the same design:
+  the 2001:db8:123::/64 LAN in area 0 (same priorities, so R3 is DR again), the two R4 links in area 1 as point-to-point, and a
+  /128 IPv6 loopback per router. OSPFv3 runs per link, not per subnet: neighbors talk from their fe80:: link-local addresses, the
+  router ID is still a 32-bit number (10.255.0.x), and inter-area routes appear as `OI`. R1 learns R4's loopback
+  2001:db8:255::4/128 as `OI`, carried by a type-3 inter-area-prefix LSA from the ABRs. IPv4 OSPF is untouched. Rollback removes
+  IPv6 and OSPFv3 from all four routers. Apply this before scenario 18.
+template: 17_ospfv3_dual_stack.j2
+targets: [R1, R2, R3, R4]
+vars:
+  v6:
+    R1:
+      rid: 10.255.0.1
+      loopback: {addr: "2001:db8:255::1/128", area: 0}
+      ifs:
+        - {name: Ethernet1/0, addr: "2001:db8:123::1/64", area: 0, priority: 1}
+    R2:
+      rid: 10.255.0.2
+      loopback: {addr: "2001:db8:255::2/128", area: 0}
+      ifs:
+        - {name: Ethernet1/0, addr: "2001:db8:123::2/64", area: 0, priority: 50}
+        - {name: Ethernet1/1, addr: "2001:db8:24::1/64", area: 1, p2p: true}
+    R3:
+      rid: 10.255.0.3
+      loopback: {addr: "2001:db8:255::3/128", area: 0}
+      ifs:
+        - {name: Ethernet1/0, addr: "2001:db8:123::3/64", area: 0, priority: 100}
+        - {name: Ethernet1/1, addr: "2001:db8:34::1/64", area: 1, p2p: true}
+    R4:
+      rid: 10.255.0.4
+      loopback: {addr: "2001:db8:255::4/128", area: 1}
+      ifs:
+        - {name: Ethernet1/0, addr: "2001:db8:34::2/64", area: 1, p2p: true}
+        - {name: Ethernet1/1, addr: "2001:db8:24::2/64", area: 1, p2p: true}
+settle_seconds: 75
+verify:
+  - device: R3
+    command: "show ipv6 ospf neighbor"
+    expect_regex: '10\.255\.0\.4\s+\d+\s+FULL'
+  - device: R3
+    command: "show ipv6 ospf neighbor"
+    expect_regex: '10\.255\.0\.1\s+\d+\s+FULL'
+  - device: R1
+    command: "show ipv6 route ospf"
+    expect_regex: '(?i)OI\s+2001:DB8:255::4/128'
+  - device: R4
+    command: "show ipv6 route ospf"
+    expect_regex: '(?i)OI\s+2001:DB8:123::/64'
+  - device: R3
+    command: "show ip ospf neighbor"
+    expect_regex: '10\.255\.0\.4\s+\d+\s+FULL'
+rollback_verify:
+  - device: R3
+    command: "show ipv6 ospf neighbor"
+    must_not_match: 'FULL'
+  - device: R1
+    command: "show ipv6 route ospf"
+    must_not_match: '(?i)2001:DB8:255::4'
+  - device: R3
+    command: "show ip ospf neighbor"
+    expect_regex: '10\.255\.0\.4\s+\d+\s+FULL'

@@ -156,6 +156,11 @@ _SHOW_ALLOWED = [re.compile(p) for p in (
     r"show ip sla statistics",
     r"show bfd neighbors(?: details)?",
     r"show running-config \| section router ospf",
+    # OSPFv3 (scenarios 17-18)
+    r"show ipv6 ospf(?: neighbor(?: detail)?| interface(?: brief| [\w/.-]{1,20})?| database(?: [a-z-]{1,20})?| border-routers)?",
+    r"show ipv6 route(?: ospf| [0-9a-fA-F:]{2,39}(?:/\d{1,3})?)?",
+    r"show ipv6 interface brief",
+    r"show running-config \| section ipv6 router ospf",
 )]
 
 

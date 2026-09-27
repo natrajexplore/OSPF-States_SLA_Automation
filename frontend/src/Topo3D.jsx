@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 // React wrapper for topo3d.js (loaded on first use, so Three.js is its own chunk).
 //   graph      GET /api/graph                 state      {nodes, links} for live colours (see topo3d.js)
 //   highlight  routers to mark amber          trace      {path: [...], onHop(i)} an animated packet, or null
-//   onSelect   click on a router              onReady    receives the engine (pulse/beam from the Live tab)
+//   onSelect   click on a router              onReady    receives the engine (pulse/beam from the Lab tab)
 export default function Topo3D({ graph, state, highlight, trace, onSelect, onReady, height = 460 }) {
   const host = useRef(null);
   const [v, setV] = useState(null);

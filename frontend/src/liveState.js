@@ -2,7 +2,9 @@
 //   node: up (answers), down (monitor cannot reach it), idle (no data yet, or the EVE node is stopped)
 //   link end: full, partial (neighbor seen but not FULL), down (neighbor missing or DOWN), idle (no data)
 // On the broadcast segment two DROTHERs stay in 2WAY by design, so 2WAY counts as healthy there.
-export function liveState(graph, monitor, devices) {
+// af "v4" colours links by OSPFv2 adjacencies, "v6" by OSPFv3 (monitor field neighbors_v6, filled once scenario 17 runs).
+export function liveState(graph, monitor, devices, af = "v4") {
+  const field = af === "v6" ? "neighbors_v6" : "neighbors";
   if (!graph) return null;
   const mon = Object.fromEntries((monitor || []).map((r) => [r.router, r]));
   const eve = Object.fromEntries((devices || []).map((d) => [d.name, d.status]));
@@ -20,7 +22,7 @@ export function liveState(graph, monitor, devices) {
       const m = mon[me.node];
       if (!m || nodes[me.node] !== "up") return (links[l.name][me.node] = "idle");
       const states = l.members.filter((p) => p.node !== me.node).map((p) => {
-        const nb = (m.neighbors || []).find((x) => x.neighbor === rid[p.node]);
+        const nb = (m[field] || []).find((x) => x.neighbor === rid[p.node]);
         if (!nb || nb.state === "DOWN") return "down";
         return nb.full || (broadcast && nb.state === "2WAY") ? "full" : "partial";
       });

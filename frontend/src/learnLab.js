@@ -180,6 +180,44 @@ export const LEARN_LAB = {
       ["Default detection", "dead interval", "40 s", "Yes", "40 s", "-"],
     ],
   },
+  ospfv3: {
+    af: "v6",                     // colour the 3D links by OSPFv3 adjacencies (grey until scenario 17 is applied)
+    flows: [
+      { label: "17: an adjacency over link-local", scenario: "17_ospfv3_dual_stack", highlight: ["R3", "R4"], path: ["R4", "R3", "R4"], captions: [
+        "R4 sends a Hello from its FE80:: link-local address to FF02::5, router ID 10.255.0.4, Instance ID 0, area 1",
+        "R3 accepts it (same area, timers and instance): 2-Way, then the database exchange",
+        "FULL. R4 also floods a Link LSA (type 8) on this link with its link-local address: that is the next hop R3 will use",
+      ] },
+      { label: "17: an inter-area prefix", scenario: "17_ospfv3_dual_stack", highlight: ["R1", "R2", "R3", "R4"], path: ["R4", "R3", "R1"], captions: [
+        "R4's 2001:db8:255::4/128 is in its Intra-Area-Prefix LSA (type 9), not in its Router LSA",
+        "R3, an ABR, originates an Inter-Area-Prefix LSA (type 3) into area 0 (R2 does the same)",
+        "R1: OI 2001:DB8:255::4/128 [110/20] via FE80::…, two link-local next hops (R3 and R2)",
+      ] },
+      { label: "18: instance ID mismatch", scenario: "18_ospfv3_instance_mismatch", highlight: ["R4"], path: ["R4", "R3"], captions: [
+        "R4's Ethernet1/0 now sends OSPFv3 packets with Instance ID 1",
+        "R3 expects 0 and discards them: the OSPFv3 R3-R4 adjacency disappears. OSPFv2 on this same link stays FULL",
+      ] },
+      { label: "18: IPv6 detours via R2", scenario: "18_ospfv3_instance_mismatch", highlight: ["R4"], path: ["R4", "R2", "R1"], captions: [
+        "R4 still has its OSPFv3 adjacency with R2",
+        "All of R4's IPv6 traffic now goes through R2",
+        "R1 still reaches 2001:db8:255::4, over one path instead of two; IPv4 keeps both",
+      ] },
+    ],
+    params: [
+      ["IPv6 routing", "ipv6 unicast-routing", "off", "-", "off at baseline", "17"],
+      ["Process", "ipv6 router ospf 1", "-", "No (local only)", "1", "17"],
+      ["Router ID", "router-id (under the process)", "borrowed from an IPv4 address; none = no process", "Must be unique", "10.255.0.1 - .4", "17"],
+      ["Enable on an interface", "ipv6 ospf 1 area <id>", "no network statements", "Area: yes", "LAN area 0, R4 links area 1", "17"],
+      ["Instance ID", "ipv6 ospf 1 area <id> instance <n>", "0", "Yes", "0", "18 (R4 e1/0 → 1)"],
+      ["Hello / dead", "ipv6 ospf hello-interval / dead-interval", "10 s / 40 s", "Yes", "10 / 40", "-"],
+      ["Priority", "ipv6 ospf priority", "1", "No", "R1 1, R2 50, R3 100 (R3 DR)", "17"],
+      ["Network type", "ipv6 ospf network point-to-point", "broadcast on Ethernet", "In practice yes", "LAN broadcast; R4 links p2p", "17"],
+      ["Neighbor address", "-", "the link-local FE80:: address", "-", "all next hops are FE80::", "17"],
+      ["Multicast groups", "-", "FF02::5 all routers, FF02::6 DR/BDR", "-", "-", "-"],
+      ["LSA types", "-", "1 router, 2 network, 3 inter-area-prefix, 4 inter-area-router, 5 external, 7 NSSA, 8 link, 9 intra-area-prefix", "-", "1, 2, 3, 8, 9 after 17", "17"],
+      ["Authentication", "ipv6 ospf authentication ipsec spi …", "none (no OSPF auth fields in v3)", "Yes", "none", "-"],
+    ],
+  },
   monitoring: {
     flows: [
       { label: "IP SLA probe R4 → R1", scenario: null, highlight: ["R4"], path: ["R4", "R3", "R1", "R3", "R4"], captions: [

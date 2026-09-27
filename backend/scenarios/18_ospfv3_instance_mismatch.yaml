@@ -1,0 +1,29 @@
+title: "OSPFv3 INSTANCE ID MISMATCH - R4 uses instance 1 on the R3 link: the v3 adjacency drops, OSPFv2 stays Full"
+concept: ospfv3_instance_mismatch
+summary: >
+  Needs scenario 17 applied first. OSPFv3 carries an Instance ID in every packet header (0 by default), so several OSPFv3
+  instances can share one link; a router only accepts packets whose Instance ID matches its own on that interface. R4 moves its
+  R3-facing interface to instance 1 while R3 stays on 0: each side silently discards the other's Hellos and the R3-R4 OSPFv3
+  adjacency disappears, with no error on the interface. OSPFv2 on the very same link is a separate protocol and stays FULL,
+  so IPv4 works while IPv6 quietly takes the path through R2. A real incident pattern when instance IDs are used to separate
+  address families or tenants and one end is configured differently. Rollback puts R4 back on instance 0.
+template: 18_ospfv3_instance_mismatch.j2
+targets: [R4]
+settle_seconds: 50
+verify:
+  - device: R3
+    command: "show ipv6 ospf neighbor"
+    must_not_match: '10\.255\.0\.4\s+\d+\s+FULL'
+  - device: R4
+    command: "show ipv6 ospf neighbor"
+    expect_regex: '10\.255\.0\.2\s+\d+\s+FULL'
+  - device: R3
+    command: "show ip ospf neighbor"
+    expect_regex: '10\.255\.0\.4\s+\d+\s+FULL'
+rollback_verify:
+  - device: R3
+    command: "show ipv6 ospf neighbor"
+    expect_regex: '10\.255\.0\.4\s+\d+\s+FULL'
+  - device: R3
+    command: "show ip ospf neighbor"
+    expect_regex: '10\.255\.0\.4\s+\d+\s+FULL'
