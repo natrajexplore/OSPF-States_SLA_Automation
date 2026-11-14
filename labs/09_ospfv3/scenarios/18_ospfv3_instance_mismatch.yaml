@@ -8,6 +8,7 @@ summary: >
   so IPv4 works while IPv6 quietly takes the path through R2. A real incident pattern when instance IDs are used to separate
   address families or tenants and one end is configured differently. Rollback puts R4 back on instance 0.
 template: 18_ospfv3_instance_mismatch.j2
+requires: [17_ospfv3_dual_stack]
 targets: [R4]
 settle_seconds: 50
 verify:

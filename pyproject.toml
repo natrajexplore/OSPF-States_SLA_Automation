@@ -1,7 +1,7 @@
 [project]
 name = "ospf-sla-states-automation"
 version = "0.1.0"
-description = "Add your description here"
+description = "OSPF scenario automation for Cisco IOS on EVE-NG, with a simulation mode, 3D dashboard and Kafka/Prometheus/Grafana telemetry"
 readme = "README.md"
 authors = [
     { email = "natrajexplore@gmail.com" }

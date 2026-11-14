@@ -6,7 +6,7 @@ import re
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from . import bus, kafka_tail, labinfo, monitor, scenarios
@@ -31,7 +31,22 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="ospf-sla-executor", lifespan=lifespan)
-_eve = EveNGClient()
+if settings.simulate:
+    from .sim.driver import SimEveClient
+    _eve = SimEveClient()
+else:
+    _eve = EveNGClient()
+
+_SID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+@app.middleware("http")
+async def no_cache(request: Request, call_next):
+    """API answers are live state: never let a browser or proxy serve a stale copy."""
+    resp = await call_next(request)
+    if request.url.path.startswith("/api/") and "Cache-Control" not in resp.headers:
+        resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 @app.get("/api/health")
@@ -43,7 +58,8 @@ def health() -> dict:
 def public_config() -> dict:
     return {"grafana_url": settings.grafana_url, "kafka_ui_url": settings.kafka_ui_url,
             "prometheus_url": settings.prometheus_url, "kafka_enabled": bool(settings.kafka_bootstrap),
-            "poll_interval": settings.poll_interval}
+            "poll_interval": settings.poll_interval, "simulate": settings.simulate,
+            "mode": "simulation" if settings.simulate else "eve-ng"}
 
 
 @app.get("/api/prometheus/query")
@@ -173,7 +189,11 @@ def device_show(name: str, cmd: str) -> dict:
     cmd = " ".join(cmd.split())
     if len(cmd) > 120 or not any(p.fullmatch(cmd) for p in _SHOW_ALLOWED):
         raise HTTPException(400, "command not allowed (read-only OSPF/route show commands only)")
-    return {"device": name, "command": cmd, "output": dev_mod.show(devs[name], cmd)}
+    try:
+        output = dev_mod.show(devs[name], cmd)
+    except Exception as exc:  # noqa: BLE001 - SSH/console failure: report it instead of a bare 500
+        raise HTTPException(502, f"{name}: {exc}")
+    return {"device": name, "command": cmd, "output": output}
 
 
 @app.get("/api/scenarios")
@@ -181,24 +201,35 @@ def scenario_list() -> list[dict]:
     return scenarios.list_scenarios()
 
 
+def _check_sid(sid: str) -> None:
+    if not _SID.match(sid):
+        raise HTTPException(400, "invalid scenario id")
+
+
 @app.post("/api/scenarios/{sid}/run")
 async def scenario_run(sid: str) -> dict:
+    _check_sid(sid)
     try:
         return {"run_id": await scenarios.run_scenario(sid, rollback=False)}
     except FileNotFoundError:
         raise HTTPException(404, sid)
     except scenarios.TargetsBusy as exc:
         raise HTTPException(409, str(exc))
+    except scenarios.ScenarioError as exc:
+        raise HTTPException(400, str(exc))
 
 
 @app.post("/api/scenarios/{sid}/rollback")
 async def scenario_rollback(sid: str) -> dict:
+    _check_sid(sid)
     try:
         return {"run_id": await scenarios.run_scenario(sid, rollback=True)}
     except FileNotFoundError:
         raise HTTPException(404, sid)
     except scenarios.TargetsBusy as exc:
         raise HTTPException(409, str(exc))
+    except scenarios.ScenarioError as exc:
+        raise HTTPException(400, str(exc))
 
 
 @app.post("/api/lab/reset")
@@ -207,6 +238,8 @@ async def lab_reset(nodes: list[str] | None = None) -> dict:
         return {"run_id": await scenarios.reset_baseline(nodes)}
     except scenarios.TargetsBusy as exc:
         raise HTTPException(409, str(exc))
+    except scenarios.ScenarioError as exc:
+        raise HTTPException(400, str(exc))
 
 
 @app.get("/api/runs/{run_id}")
@@ -218,6 +251,8 @@ def run_detail(run_id: str) -> dict:
 
 @app.get("/api/stream/{run_id}")
 async def stream(run_id: str) -> StreamingResponse:
+    if run_id not in scenarios.RUNS:
+        raise HTTPException(404, run_id)          # an unknown id would otherwise hold the stream open forever
     q = subscribe(run_id)
 
     async def gen():

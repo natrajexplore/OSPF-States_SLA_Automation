@@ -16,7 +16,7 @@ function Secret({ value, shown, onReveal }) {
   );
 }
 
-export default function Credentials() {
+export default function Credentials({ sim }) {
   const { data, error } = usePoll("/api/credentials", 60000);
   const [shown, setShown] = useState({});
   const [all, setAll] = useState(false);
@@ -76,7 +76,7 @@ export default function Credentials() {
                         {r.baseline_match === false && <span className="badge bad">baseline differs</span>}
                         {r.baseline_match == null && <span className="badge muted">no baseline</span>}
                       </td>
-                      <td><a className="btn" href={puttyHref(lab.id, r.name)}>SSH session</a></td>
+                      <td>{sim ? <span className="muted small" title="Simulation mode: there is no router to SSH to">simulated</span> : <a className="btn" href={puttyHref(lab.id, r.name)}>SSH session</a>}</td>
                     </tr>
                   );
                 })}

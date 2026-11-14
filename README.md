@@ -1,5 +1,14 @@
 # OSPF SLA & States Automation
 
+![CI](https://github.com/natrajexplore/OSPF-States_SLA_Automation/actions/workflows/ci.yml/badge.svg)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
+![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![Docker](https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white)
+![EVE-NG](https://img.shields.io/badge/EVE--NG-Community-orange)
+![Cisco IOS](https://img.shields.io/badge/Cisco%20IOS-c7200%2015.2-1BA0D7?logo=cisco&logoColor=white)
+
 A hands-on OSPF platform on **EVE-NG** with real Cisco IOS routers (7206VXR / c7200, Dynamips): pick a scenario, click **Apply**,
 and the platform configures the routers over SSH, waits for OSPF to converge, verifies the result against regex assertions and
 shows a before/after diff, while a live telemetry pipeline (Kafka, Prometheus, Grafana) records every adjacency change.
@@ -18,6 +27,42 @@ shows a before/after diff, while a live telemetry pipeline (Kafka, Prometheus, G
 The design follows [BGP-Attributes-Executor-Automation_tools](https://github.com/natrajexplore/BGP-Attributes-Executor-Automation_tools):
 each concept is a YAML scenario plus a Jinja2 template with an apply and a `{% if rollback %}` branch, verified by regex assertions,
 and each topic also exists as a standalone lab folder.
+
+## Try it in 2 minutes (no EVE-NG, no routers)
+
+```bash
+docker compose -f docker-compose.demo.yml up --build        # then open http://localhost:8082
+```
+
+or without Docker: `powershell -ExecutionPolicy Bypass -File scripts\demo.ps1` (Windows) / `./scripts/demo.sh` (Linux, macOS),
+then open `http://localhost:5173`. The dashboard starts in **simulation mode**: the four Cisco IOS routers are modelled in the
+backend from their real baseline configurations, so every Apply, Rollback, verification, `show` command, 3D state and live event
+works end to end. Click **▶ Demo tour** on the Lab tab for a guided, captioned run through the main scenarios.
+[How the simulation works](#simulation-mode).
+
+## What's new
+
+* **Simulation mode** (`OSPF_SIMULATE=true`). An OSPF model in the backend ([`backend/app/sim/`](backend/app/sim/)) that is driven by
+  the same IOS configuration the routers receive and answers `show` commands in IOS format: adjacencies (hello/dead, area, stub
+  flags, network type, MTU, OSPFv3 instance ID), non-preemptive DR/BDR election, LSDB, SPF with ECMP, inter-area, E2, NSSA N2 with
+  translator election, BFD and IP SLA. All 18 scenarios pass their own verify and rollback assertions in it.
+* **One-command demo**: [`docker-compose.demo.yml`](docker-compose.demo.yml), [`scripts/demo.ps1`](scripts/demo.ps1),
+  [`scripts/demo.sh`](scripts/demo.sh).
+* **Demo tour** on the Lab tab: twelve captioned steps (adjacency, DR/BDR, NSSA, MTU, OSPFv3 and its instance-ID failure), ready to
+  screen-record.
+* **New look**, shared with the sibling [BGP Attributes Executor](https://github.com/natrajexplore/BGP-Attributes-Executor-Automation_tools):
+  dark palette with a Light/Dark switch, connection and mode pills, and **Grafana / Prometheus / Kafka UI** buttons in the header.
+  The Lab tab is now the default tab.
+* **Safer automation on real routers**: every SSH session checks the router's hostname before sending anything
+  (`OSPF_HOSTNAME_GUARD`), refused or timed-out connections are retried (`OSPF_CONNECT_RETRIES`), and any configuration line IOS
+  rejects (`% Invalid input`) is reported in the run log instead of being silently ignored.
+* **Fixes**: the monitor no longer reports a neighbor as lost when its dead time reads `840 msec` (scenario 16,
+  `dead-interval minimal`); `O*IA` default routes are counted; the run stream answers 404 for an unknown run instead of hanging;
+  a baseline reset logs its error and saves its run record; the CLI tab reports an SSH failure as a message instead of an HTTP 500;
+  scenario and router names are validated; API answers are never cached. Scenario 18 declares that it needs 17 (`requires:`), and
+  the Lab tab says so.
+* **Tests and CI**: 56 offline tests ([`backend/tests/`](backend/tests/)), including every scenario's apply and rollback against the
+  simulated lab and a check that its assertions fail before Apply; GitHub Actions runs them and the frontend build on every push.
 
 ---
 
@@ -186,6 +231,8 @@ dashboard's monitor polls those addresses and shares the EVE-NG account. Stop th
 
 ## Quick start
 
+**Simulation (any PC):** see [Try it in 2 minutes](#try-it-in-2-minutes-no-eve-ng-no-routers). The steps below set up the real lab.
+
 1. **EVE-NG topology.** Generate the shared lab and import the zip in the EVE-NG web UI (details in [`docs/lab.md`](docs/lab.md#eve-ng-setup)):
 
    ```bash
@@ -227,6 +274,9 @@ UI development: `cd frontend && npm install && VITE_API=http://<eve-vm>:8010 npm
 | `OSPF_CONSOLE_FALLBACK` | Use the EVE telnet console when SSH to a router fails |
 | `KAFKA_ADVERTISED_HOST`, `OSPF_KAFKA_BOOTSTRAP`, `OSPF_POLL_INTERVAL` | Kafka listener and the backend's poller (empty bootstrap disables publishing) |
 | `OSPF_GRAFANA_URL`, `OSPF_KAFKA_UI_URL`, `OSPF_PROMETHEUS_URL` | Links and queries used by the Lab, Kafka and Prometheus tabs |
+| `OSPF_HOSTNAME_GUARD` (default `true`), `OSPF_CONNECT_RETRIES` (default `2`) | Refuse to configure a router whose prompt is not its inventory name; SSH connection attempts |
+| `OSPF_SIMULATE` (default `false`) | Simulation mode: the in-process router model instead of EVE-NG and SSH |
+| `OSPF_SIM_SETTLE_SCALE` (`0.1`), `OSPF_SIM_CONVERGE` (`4`) | Simulation: scenario `settle_seconds` multiplier, and the seconds an adjacency takes to reach FULL |
 
 `.env` is never committed; start from [`.env.example`](.env.example).
 
@@ -236,11 +286,10 @@ UI development: `cd frontend && npm install && VITE_API=http://<eve-vm>:8010 npm
 
 | Tab | Address | What it is for |
 |---|---|---|
+| **Lab** (default) | `#lab` (old `#live` links still work) | The lab in 3D with live OSPFv2 / OSPFv3 adjacency colours, Apply / Rollback, **Reset lab to baseline** and **▶ Demo tour** with SSH beams, the SSH / CLI transcript, and the router table (EVE-NG state, console port, SSH address, v2 / v3 neighbors, **SSH session**, **CLI tab**) |
 | **Monitor** | `#monitor` | Per-router neighbors and states, DR/BDR roles, routes by type, BFD and IP SLA, and a live event feed (SSE) |
-| **Lab** | `#lab` (old `#live` links still work) | The lab in 3D with live OSPFv2 / OSPFv3 adjacency colours, Apply / Rollback and **Reset lab to baseline** with SSH beams, the SSH / CLI transcript, and the router table (EVE-NG state, console port, SSH address, v2 / v3 neighbors) and SSH card (**SSH session**, **CLI tab**) |
 | **Scenarios** | `#scenarios` | Apply / Rollback with a streamed log, PASS / FAIL per check, and before/after diffs |
 | **CLI** | `#cli`, `#cli/R3` | Whitelisted read-only `show` commands on any router, with a per-router transcript |
-| **Lab** | `#lab` | Devices and their EVE-NG state, **Reset lab to baseline**, Grafana link |
 | **Credentials** | `#credentials` | Login, password and enable secret of the 40 routers of the 10 labs, checked against their baselines, with **SSH session** buttons |
 | **Learn** | `#learn` | The OSPF course with 3D packet flows and parameter tables, see below |
 | **Kafka** | `#kafka` | The live stream of the three OSPF topics, and a link to Kafka UI |
@@ -401,12 +450,62 @@ Not yet exercised: clicking **Apply** in the Live tab in an interactive browser 
 
 ---
 
+## Simulation mode
+
+`OSPF_SIMULATE=true` replaces EVE-NG and SSH with a model of the routers inside the backend. Nothing else changes: the scenario
+engine renders the same Jinja2 templates, pushes the same lines, runs the same `post_commands`, waits, runs the same `show`
+commands and evaluates the same regex assertions; the monitor polls and emits the same events; the CLI tab answers the same
+whitelisted commands.
+
+| Part | File | What it does |
+|---|---|---|
+| IOS configuration | [`sim/iosconfig.py`](backend/app/sim/iosconfig.py) | Parses baselines and pushed config sets with IOS mode rules (a line that is not a sub-command of the current mode drops back to global mode, as `no ip route` inside `router ospf` does) |
+| OSPF | [`sim/ospf.py`](backend/app/sim/ospf.py) | Adjacency per link pair (area, hello/dead incl. `dead-interval minimal`, stub/NSSA flag, network type, MTU, subnet, OSPFv3 instance ID), DR/BDR election (non-preemptive; `clear ip ospf process` re-elects), router/network/summary/type-5/type-7 LSAs, Dijkstra with ECMP, inter-area via ABRs, stub default, E2 and N2 with type-7 translation (`translate type7 always` or highest router ID), BFD |
+| `show` output | [`sim/render.py`](backend/app/sim/render.py) | IOS-format `show ip ospf neighbor / interface [brief] / database / border-routers`, `show ip route [ospf / <addr>]`, `show ipv6 ospf neighbor`, `show ipv6 route ospf`, `show bfd neighbors`, `show ip sla statistics`, `show running-config \| section router ospf`, and more |
+| Wiring | [`sim/driver.py`](backend/app/sim/driver.py), [`devices.py`](backend/app/devices.py) | One shared, thread-safe lab; a stand-in EVE-NG client (all nodes running) |
+
+Timers are compressed: a scenario waits `settle_seconds × OSPF_SIM_SETTLE_SCALE` (at least the convergence time), and a new
+adjacency walks INIT → EXSTART → EXCHANGE → LOADING → FULL over `OSPF_SIM_CONVERGE` seconds, so the 3D view and the event feed
+show it forming. It is a model, not an IOS emulator: commands outside the scenarios and the CLI whitelist are not understood, and
+on real routers some failures depend on timing the model fixes (for example the broadcast side's 40 s wait timer in scenario 10).
+Scenario 08 (BFD) passes in simulation but does not run on Dynamips c7200 (see [Status](#status)).
+
+## Tests and CI
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+python -m pytest tests -q          # 56 tests, about 6 s, no network
+```
+
+[`test_sim_scenarios.py`](backend/tests/test_sim_scenarios.py) applies and rolls back every scenario against the simulated lab and
+checks its `verify` / `rollback_verify` assertions, plus that the apply assertions fail on the untouched baseline (so a scenario cannot
+pass by doing nothing). [`test_api.py`](backend/tests/test_api.py) drives the HTTP API (a full apply and rollback run, the CLI
+whitelist, input validation, credentials); [`test_units.py`](backend/tests/test_units.py) covers the hostname guard, the retry helper,
+IOS error detection, the monitor parsers and IOS mode handling; [`test_sim_timing.py`](backend/tests/test_sim_timing.py) checks that adjacencies re-form within each scenario's settle time. [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs the tests
+and the frontend build on every push and pull request.
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| Header pill says **backend down** | The UI cannot reach the API: check the backend container (`docker compose logs ospf-backend`) and `API_UPSTREAM` |
+| A run fails with `hostname guard: ... answered as 'Router'` | The address in `inventory.yaml` reaches another box, or the router was not bootstrapped. Fix the address, or run `bootstrap.py` first |
+| A run log ends with `WARNING: IOS rejected N line(s)` | The image does not support a command of the template (BFD on Dynamips c7200 is the known case); the listed lines show which |
+| `409 already running on: R4` | Another run holds one of the scenario's routers; wait for it to finish |
+| Scenario 18 fails | It needs scenario 17 applied first (the Lab tab says so) |
+| Routers table empty, EVE-NG state `unknown` | `OSPF_EVENG_URL` / `OSPF_LAB_PATH` in `.env` are wrong, or the lab is not started |
+| Grafana / Prometheus / Kafka UI buttons missing | Set `OSPF_GRAFANA_URL`, `OSPF_PROMETHEUS_URL`, `OSPF_KAFKA_UI_URL` in `.env` |
+| A page looks out of date after an update | Press Ctrl+Shift+R once |
+
 ## Repo layout
 
 ```
 backend/
   app/              FastAPI application: scenario engine, devices (Netmiko), EVE-NG client, monitor, Kafka bus, validation,
                     labinfo (3D graph and the credentials of every lab; labs/ is mounted read-only at /app/labs)
+  app/sim/          simulation mode: IOS configuration model, OSPF model, IOS-format show output, driver
+  tests/            offline pytest suite (simulation mode)
   scenarios/        YAML: title, targets, vars, settle_seconds, post_commands, verify / rollback_verify
   templates/        Jinja2, one per scenario (apply + {% if rollback %}, branching on target where routers differ)
   baseline/         full per-router IOS configurations of the shared lab
@@ -429,6 +528,8 @@ monitoring/         Kafka exporter, Prometheus configuration and alerts, Grafana
 
 ## More documentation
 
+* [`docs/showcase.md`](docs/showcase.md): a recording script for a YouTube demo and a LinkedIn post
+* [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md): React, Three.js, Python dependencies; Cisco IOS images are not included
 * [`docs/lab.md`](docs/lab.md): addressing, EVE-NG setup, the first-run checklist (and the BFD recovery procedure), adding a scenario
 * [`labs/README.md`](labs/README.md): the standalone labs, `labtool.sh`, one-lab-at-a-time rules, regenerating files
 * Each lab's `README.md` and `CONFIGS.md`

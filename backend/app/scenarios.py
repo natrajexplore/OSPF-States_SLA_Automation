@@ -31,6 +31,17 @@ _locked_targets: set[str] = set()
 _targets_guard = asyncio.Lock()
 
 
+class ScenarioError(ValueError):
+    """The request names routers or a scenario the inventory does not have."""
+
+
+def settle_time(seconds: float) -> float:
+    """Real routers need real timer expiry; the simulator compresses it but always waits for its adjacencies to form."""
+    if settings.simulate:
+        return max(settings.sim_converge + 1.5, seconds * settings.sim_settle_scale)
+    return seconds
+
+
 class TargetsBusy(RuntimeError):
     def __init__(self, busy: set[str]) -> None:
         self.busy = busy
@@ -128,6 +139,10 @@ async def _capture(run_id: str, verify: list[dict], devices: dict, phase: str) -
 async def run_scenario(sid: str, rollback: bool = False) -> str:
     sc = get_scenario(sid)
     targets = sc["targets"]
+    known = build_devices()
+    missing = [t for t in targets + [v["device"] for v in verify_for(sc, rollback)] if t not in known]
+    if missing:
+        raise ScenarioError(f"{sid}: not in the inventory: {', '.join(sorted(set(missing)))}")
     await _acquire_targets(targets)  # raises TargetsBusy if another run already holds one of these routers
 
     run_id = f"{sid}-{'rollback' if rollback else 'apply'}-{uuid.uuid4().hex[:8]}"
@@ -162,7 +177,9 @@ async def run_scenario(sid: str, rollback: bool = False) -> str:
                     publish(run_id, "log", f"--- {cmd} on {tgt} ---")
                     await asyncio.to_thread(dev_mod.exec_cmd, devices[tgt], cmd)
             # hello/dead and wait timers need real time to expire before the verify
-            await asyncio.sleep(sc.get("settle_seconds", 10))
+            settle = settle_time(sc.get("settle_seconds", 10))
+            publish(run_id, "log", f"--- waiting {settle:g}s for OSPF to settle ---")
+            await asyncio.sleep(settle)
 
             after = await _capture(run_id, verify, devices, "after")
 
@@ -200,6 +217,9 @@ async def reset_baseline(nodes: list[str] | None = None) -> str:
 
     devices = build_devices()
     targets = nodes or list(devices)
+    unknown = [t for t in targets if t not in devices]
+    if unknown:
+        raise ScenarioError(f"not in the inventory: {', '.join(unknown)}")
     await _acquire_targets(targets)  # raises TargetsBusy if any of these routers are mid-scenario
 
     run_id = f"baseline-{uuid.uuid4().hex[:8]}"
@@ -220,9 +240,11 @@ async def reset_baseline(nodes: list[str] | None = None) -> str:
             publish(run_id, "result", "done")
         except Exception as exc:  # noqa: BLE001
             RUNS[run_id].update(state="error", error=str(exc))
+            publish(run_id, "log", f"ERROR: {exc}")
             publish(run_id, "result", "error")
         finally:
             RUNS[run_id]["finished"] = datetime.now(timezone.utc).isoformat()
+            (RUNS_DIR / f"{run_id}.json").write_text(json.dumps(RUNS[run_id], indent=2, default=str))
             _emit_config_event(RUNS[run_id], "baseline", RUNS[run_id].get("nodes", []))
             await _release_targets(targets)
             done(run_id)

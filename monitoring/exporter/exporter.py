@@ -24,7 +24,7 @@ if_role = Gauge("ospf_interface_role", "1 for the current interface state (DR/BD
                 ["router", "interface", "area", "state"])
 if_cost = Gauge("ospf_interface_cost", "OSPF interface cost", ["router", "interface", "area"])
 if_nbrs = Gauge("ospf_interface_full_neighbors", "Full neighbors on the interface", ["router", "interface"])
-routes = Gauge("ospf_routes", "OSPF routes in the RIB by type (O, O IA, O E1, O E2, O N1, O N2)", ["router", "type"])
+routes = Gauge("ospf_routes", "OSPF routes in the RIB by type (O, O IA, O*IA, O E1, O E2, O N1, O N2)", ["router", "type"])
 bfd_up = Gauge("ospf_bfd_up", "1 if the BFD session is Up", NBR)
 sla_rtt = Gauge("ospf_sla_rtt_milliseconds", "IP SLA latest RTT", ["router", "operation"])
 sla_up = Gauge("ospf_sla_up", "1 if the IP SLA latest return code is OK", ["router", "operation"])

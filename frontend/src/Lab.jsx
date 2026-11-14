@@ -55,6 +55,24 @@ export function sshTranscript(lines, nodes) {
 
 const STATUS = { running: "ok", stopped: "bad", starting: "warn" };
 
+// The demo tour: a playlist that tells the OSPF story in a few minutes (in simulation; real timers make it ~25 min on EVE-NG).
+// Each step is [scenario, apply|rollback, caption shown above the 3D view].
+export const TOUR = [
+  ["01_adjacency", "apply", "Hello/dead timers no longer match: R3 and R4 drop out of FULL (red link)"],
+  ["01_adjacency", "rollback", "Timers match again: the R3-R4 adjacency climbs back to FULL"],
+  ["02_dr_bdr", "apply", "New priorities + clear ip ospf process: R1 becomes DR, R2 BDR, R3 DROTHER"],
+  ["02_dr_bdr", "rollback", "Back to the design: R3 DR, R2 BDR"],
+  ["06_nssa", "apply", "Area 1 becomes NSSA: R4's Loopback1 is a type-7 (O N2), translated to type-5 (O E2) for R1"],
+  ["06_nssa", "rollback", "Area 1 is a normal area again"],
+  ["09_mtu_mismatch", "apply", "IP MTU 1300 vs 1500: hellos fine, but the DBD exchange stalls in EXSTART/EXCHANGE"],
+  ["09_mtu_mismatch", "rollback", "MTUs match: the adjacency completes"],
+  ["17_ospfv3_dual_stack", "apply", "OSPFv3 for IPv6 on every link (switch the links view to OSPFv3)"],
+  ["18_ospfv3_instance_mismatch", "apply", "OSPFv3 instance 1 on R4's R3 link: the v3 adjacency disappears, OSPFv2 stays FULL"],
+  ["18_ospfv3_instance_mismatch", "rollback", "Instance IDs match: OSPFv3 R3-R4 is back"],
+  ["17_ospfv3_dual_stack", "rollback", "IPv6 removed: back to the IPv4-only baseline"],
+];
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+
 export default function Lab({ cfg, goToCli }) {
   const { data: graph, error: gErr } = usePoll("/api/graph", 300000);
   const { data: monitor } = usePoll("/api/monitor/state", 5000);
@@ -66,6 +84,9 @@ export default function Lab({ cfg, goToCli }) {
   const [filter, setFilter] = useState("all");
   const [af, setAf] = useState("v4");
   const r = useRun();
+  const [tour, setTour] = useState(null);           // {i, caption} while the demo tour plays
+  const stopTour = useRef(false);
+  const sim = !!cfg?.simulate;
   const eng = useRef(null);
   const seen = useRef(0);
   const box = useRef(null);
@@ -91,9 +112,26 @@ export default function Lab({ cfg, goToCli }) {
 
   const go = (m) => { setTitle(`${sid} · ${m}`); seen.current = 0; r.start(`/api/scenarios/${sid}/${m === "apply" ? "run" : "rollback"}`); };
   const reset = () => {
-    if (window.confirm("Push the baseline configuration to all routers? Scenario changes will be overwritten.")) {
+    if (sim || window.confirm("Push the baseline configuration to all routers? Scenario changes will be overwritten.")) {
       setTitle("Reset lab to baseline"); seen.current = 0; r.start("/api/lab/reset");
     }
+  };
+  const playTour = async () => {
+    if (!sim && !window.confirm("The tour runs 12 scenario steps on the real routers (about 25 minutes with real OSPF timers). Start?")) return;
+    stopTour.current = false;
+    setTour({ i: -1, caption: "Resetting the lab to its baseline" });
+    setTitle("Reset lab to baseline"); seen.current = 0;
+    await r.start("/api/lab/reset");
+    for (let i = 0; i < TOUR.length && !stopTour.current; i++) {
+      const [s, m, caption] = TOUR[i];
+      setSid(s); setAf(s.startsWith("17") || s.startsWith("18") ? "v6" : "v4");
+      setTour({ i, caption });
+      setTitle(`${s} · ${m}`); seen.current = 0;
+      const rec = await r.start(`/api/scenarios/${s}/${m === "apply" ? "run" : "rollback"}`);
+      if (!rec) break;
+      await sleep(sim ? 3500 : 8000);                 // let the viewer see the result
+    }
+    setTour(null); setAf("v4");
   };
   const mon = Object.fromEntries((monitor || []).map((m) => [m.router, m]));
   const eve = Object.fromEntries((devices || []).map((d) => [d.name, d]));
@@ -104,6 +142,22 @@ export default function Lab({ cfg, goToCli }) {
   return (
     <>
       {(gErr || dErr) && <div className="alert bad">Backend: {gErr || dErr}</div>}
+      {sim && (
+        <div className="banner">
+          <b>Simulation mode</b>
+          <span>The four Cisco IOS routers are modelled in the backend from their real configurations: every Apply, Rollback, verify
+            and <code>show</code> runs end to end, with no EVE-NG. Set <code>OSPF_SIMULATE=false</code> to drive the real lab.</span>
+        </div>
+      )}
+      {tour && (
+        <div className="banner tour">
+          <span className="chip">{tour.i < 0 ? "start" : `step ${tour.i + 1} / ${TOUR.length}`}</span>
+          <span className="cap">{tour.caption}</span>
+          <progress max={TOUR.length} value={Math.max(0, tour.i + 1)} />
+          <span className="spacer" />
+          <button className="secondary" onClick={() => { stopTour.current = true; }}>Stop after this step</button>
+        </div>
+      )}
       <section className="card">
         <h3>
           Lab
@@ -115,8 +169,10 @@ export default function Lab({ cfg, goToCli }) {
           <button disabled={r.busy || !sid} onClick={() => go("apply")}>Apply</button>
           <button className="secondary" disabled={r.busy || !sid} onClick={() => go("rollback")}>Rollback</button>
           <button className="danger" disabled={r.busy} onClick={reset}>Reset lab to baseline</button>
+          <button className="secondary" disabled={r.busy || !!tour} onClick={playTour} title="Play a guided playlist of scenarios with captions">▶ Demo tour</button>
         </h3>
-        {sc && <p className="muted small">{sc.summary} <b>Configures:</b> {sc.targets.join(", ")} (amber in 3D).</p>}
+        {sc && <p className="muted small">{sc.summary} <b>Configures:</b> {sc.targets.join(", ")} (amber in 3D).
+          {sc.requires?.length > 0 && <> <b className="bad-text">Needs {sc.requires.join(", ")} applied first.</b></>}</p>}
         <div className="legend small">
           <span><i style={{ background: "#3fb950" }} />adjacency FULL / router answers</span>
           <span><i style={{ background: "#d29922" }} />adjacency forming (INIT, EXSTART…)</span>
@@ -141,7 +197,7 @@ export default function Lab({ cfg, goToCli }) {
         </section>
 
         <section className="card">
-          <h3>Routers <span className="muted small">EVE-NG, console and SSH</span></h3>
+          <h3>Routers <span className="muted small">{sim ? "simulated Cisco 7206VXR, IOS 15.2" : "EVE-NG, console and SSH"}</span></h3>
           <table>
             <thead><tr><th>Router</th><th>EVE-NG</th><th>Access</th><th>OSPF FULL</th><th /></tr></thead>
             <tbody>
@@ -160,7 +216,7 @@ export default function Lab({ cfg, goToCli }) {
                     </td>
                     <td className="nowrap small">v2 {count(m?.neighbors)}<br />v3 {count(m?.neighbors_v6)}</td>
                     <td className="nowrap">
-                      <a className="btn small" href={puttyHref("shared", n.name)} title="Own PuTTY window (one-time scripts\putty-setup.ps1)">SSH session</a>{" "}
+                      {!sim && <><a className="btn small" href={puttyHref("shared", n.name)} title="Own PuTTY window (one-time scripts\putty-setup.ps1)">SSH session</a>{" "}</>}
                       <button className="secondary small" onClick={() => goToCli(n.name)} title="Open the CLI tab on this router and run show ip ospf neighbor">CLI tab</button>
                     </td>
                   </tr>
@@ -168,12 +224,12 @@ export default function Lab({ cfg, goToCli }) {
               })}
             </tbody>
           </table>
-          <p className="muted small">
+          {!sim && <p className="muted small">
             Status and console ports come from the EVE-NG API; if they are empty, check OSPF_EVENG_URL and OSPF_LAB_PATH in .env.
             Routers accept SSH only (<code>transport input ssh</code>); the addresses live inside the EVE VM, so PuTTY goes through the VM
             (<code>scripts\putty-setup.ps1</code>). Logins: Credentials tab. Terminal:{" "}
             <code>ssh -J root@&lt;eve-vm&gt; -o KexAlgorithms=+diffie-hellman-group14-sha1 -o HostKeyAlgorithms=+ssh-rsa lab@{graph?.nodes?.find((n) => n.name === (sel || "R1"))?.mgmt_ip || "192.168.99.11"}</code>
-          </p>
+          </p>}
           {cfg?.grafana_url && <p className="small">Grafana: <a href={cfg.grafana_url} target="_blank" rel="noreferrer">{cfg.grafana_url}</a></p>}
         </section>
       </div>

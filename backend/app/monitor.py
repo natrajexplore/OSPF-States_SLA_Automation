@@ -15,14 +15,15 @@ from .inventory import Device, build_devices
 
 log = logging.getLogger("ospf.monitor")
 
-# 10.255.0.3   100   FULL/DR   00:00:33   10.0.123.3   Ethernet1/0      (role is "-" on point-to-point)
+# 10.255.0.3   100   FULL/DR   00:00:33   10.0.123.3   Ethernet1/0      (role is "-" on point-to-point;
+# the dead time reads "840 msec" with `ip ospf dead-interval minimal`, scenario 16)
 _NBR = re.compile(
-    r"^(\d{1,3}(?:\.\d{1,3}){3})\s+(\d+)\s+([A-Z0-9]+)/\s*(\S+)\s+(?:\d\d:\d\d:\d\d|-)\s+"
+    r"^(\d{1,3}(?:\.\d{1,3}){3})\s+(\d+)\s+([A-Z0-9]+)/\s*(\S+)\s+(?:\d\d:\d\d:\d\d|\d+ msec|-)\s+"
     r"(\d{1,3}(?:\.\d{1,3}){3})\s+(\S+)\s*$"
 )
 # Et1/0   1   0   10.0.123.1/24   10   DR   2/2
 _IFACE = re.compile(r"^(\S+)\s+\d+\s+(\S+)\s+(\d{1,3}(?:\.\d{1,3}){3}/\d+)\s+(\d+)\s+(\S+)\s+(\d+)/(\d+)\s*$")
-_ROUTE = re.compile(r"^(O(?: IA| E1| E2| N1| N2)?)\s", re.MULTILINE)
+_ROUTE = re.compile(r"^(O(?: IA| E1| E2| N1| N2|\*IA|\*E2|\*N2)?)\s", re.MULTILINE)
 # 10.1.34.2   1/1   Up   Up   Et1/0
 _BFD = re.compile(r"^(\d{1,3}(?:\.\d{1,3}){3})\s+\d+/\d+\s+(?:\S+\s+)?(Up|Down|Init|AdminDown)\s+(\S+)\s*$", re.IGNORECASE)
 _SLA_ID = re.compile(r"IPSLA operation id:\s*(\d+)")
@@ -53,7 +54,7 @@ def parse_neighbors(output: str) -> list[dict]:
 # OSPFv3: the address column is replaced by the neighbor's Interface ID
 # 10.255.0.1   1   FULL/DROTHER   00:00:34   3   Ethernet1/0
 _NBR6 = re.compile(
-    r"^(\d{1,3}(?:\.\d{1,3}){3})\s+(\d+)\s+([A-Z0-9]+)/\s*(\S+)\s+(?:\d\d:\d\d:\d\d|-)\s+(\d+)\s+(\S+)\s*$"
+    r"^(\d{1,3}(?:\.\d{1,3}){3})\s+(\d+)\s+([A-Z0-9]+)/\s*(\S+)\s+(?:\d\d:\d\d:\d\d|\d+ msec|-)\s+(\d+)\s+(\S+)\s*$"
 )
 
 

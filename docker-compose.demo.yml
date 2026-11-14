@@ -1,0 +1,35 @@
+# One-command demo on any PC with Docker: the whole dashboard in simulation mode (no EVE-NG, no routers, no Kafka).
+#   docker compose -f docker-compose.demo.yml up --build      then open http://localhost:8082
+# The routers are modelled in the backend from backend/baseline/*.cfg (app/sim/); every scenario applies, verifies and
+# rolls back exactly as on the real lab, with timers compressed.
+
+services:
+  ospf-backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: ospf-sla-executor:latest
+    environment:
+      OSPF_SIMULATE: "true"
+      OSPF_KAFKA_BOOTSTRAP: ""
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8010"]
+    volumes:
+      - ./labs:/app/labs:ro                  # Credentials tab lists the standalone labs too
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8010/api/health').status==200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  ospf-ui:
+    build:
+      context: ./frontend
+    image: ospf-sla-ui:latest
+    environment:
+      API_UPSTREAM: http://ospf-backend:8010
+      UI_PORT: "8082"
+    ports:
+      - "8082:8082"
+    depends_on:
+      ospf-backend:
+        condition: service_healthy

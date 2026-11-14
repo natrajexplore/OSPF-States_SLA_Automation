@@ -18,6 +18,7 @@ const COMMANDS = [
   "show ip ospf interface Ethernet1/1",
   "show ip route 10.255.0.1",
   "show ip sla statistics",
+  "show bfd neighbors",
   "show running-config | section router ospf",
   // OSPFv3 (after scenario 17)
   "show ipv6 ospf neighbor",
@@ -29,7 +30,7 @@ const COMMANDS = [
 ];
 const transcripts = {};                     // router -> [{cmd, out, err, at}], kept while the page is open
 
-export default function Cli({ router: initial }) {
+export default function Cli({ router: initial, sim }) {
   const { data: devices } = usePoll("/api/devices", 15000);
   const { data: monitor } = usePoll("/api/monitor/state", 10000);
   const [router, setRouter] = useState(initial || null);
@@ -74,9 +75,9 @@ export default function Cli({ router: initial }) {
       <section className="card">
         <h3>
           CLI
-          <span className="muted small">read-only `show` commands over SSH, through the backend</span>
+          <span className="muted small">{sim ? "read-only `show` commands, answered by the simulated routers" : "read-only `show` commands over SSH, through the backend"}</span>
           <span className="spacer" />
-          {dev && <a className="btn" href={puttyHref("shared", dev.name)} title="Open this router in its own PuTTY window (one-time scripts\putty-setup.ps1)">SSH session (PuTTY)</a>}
+          {dev && !sim && <a className="btn" href={puttyHref("shared", dev.name)} title="Open this router in its own PuTTY window (one-time scripts\putty-setup.ps1)">SSH session (PuTTY)</a>}
         </h3>
         <div className="chips">
           {names.map((n) => (
