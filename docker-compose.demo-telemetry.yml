@@ -1,0 +1,20 @@
+# Add-on to docker-compose.demo.yml: connects the simulated lab to the local monitoring stack
+# (docker-compose.monitoring.yml), so its adjacency events and snapshots go to Kafka -> exporter -> Prometheus -> Grafana.
+#   docker compose -f docker-compose.monitoring.yml up -d --build                                   # once
+#   docker compose -f docker-compose.demo.yml -f docker-compose.demo-telemetry.yml up -d --build   # http://localhost:8082
+# The URLs are what the browser opens from the dashboard header; OSPF_PROMETHEUS_QUERY_URL is what the backend queries.
+
+services:
+  ospf-backend:
+    environment:
+      OSPF_KAFKA_BOOTSTRAP: kafka:29092
+      OSPF_GRAFANA_URL: http://localhost:3000
+      OSPF_PROMETHEUS_URL: http://localhost:9090
+      OSPF_PROMETHEUS_QUERY_URL: http://prometheus:9090
+      OSPF_KAFKA_UI_URL: http://localhost:8080
+    networks: [default, monitoring]
+
+networks:
+  monitoring:
+    name: ospf-sla-states-automation_default     # the network docker-compose.monitoring.yml creates
+    external: true

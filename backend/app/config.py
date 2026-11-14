@@ -49,6 +49,8 @@ class Settings:
     grafana_url = os.getenv("OSPF_GRAFANA_URL", "")
     kafka_ui_url = os.getenv("OSPF_KAFKA_UI_URL", "")
     prometheus_url = os.getenv("OSPF_PROMETHEUS_URL", "")
+    # where the backend itself queries Prometheus, when that differs from the browser's address (containers on one network)
+    prometheus_query_url = os.getenv("OSPF_PROMETHEUS_QUERY_URL", "") or prometheus_url
 
     conn_timeout = int(os.getenv("OSPF_CONN_TIMEOUT", "15"))
     read_timeout = int(os.getenv("OSPF_READ_TIMEOUT", "30"))

@@ -68,7 +68,7 @@ export default function App() {
   const { tab, arg } = route;
   const sim = !!cfg?.simulate;
   const ext = (url, label) => url && (
-    <a className="btn secondary" href={url} target="_blank" rel="noreferrer">{label} ↗</a>
+    <a className="btn secondary small" href={url} target="_blank" rel="noreferrer">{label} ↗</a>
   );
   return (
     <>
@@ -90,7 +90,7 @@ export default function App() {
         {ext(cfg?.grafana_url, "Grafana")}
         {ext(cfg?.prometheus_url, "Prometheus")}
         {ext(cfg?.kafka_ui_url, "Kafka UI")}
-        <button className="secondary" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} title="Light or dark page">
+        <button className="secondary small" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} title="Light or dark page">
           {theme === "dark" ? "Light" : "Dark"}
         </button>
       </header>

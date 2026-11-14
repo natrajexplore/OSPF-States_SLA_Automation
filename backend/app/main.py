@@ -66,10 +66,10 @@ def public_config() -> dict:
 def prometheus_query(query: str) -> dict:
     """Thin proxy for a PromQL instant query, so the browser doesn't need direct network access to
     Prometheus (it runs on the Windows host; the UI is served from the EVE-NG VM)."""
-    if not settings.prometheus_url:
+    if not settings.prometheus_query_url:
         raise HTTPException(503, "OSPF_PROMETHEUS_URL is not set")
     try:
-        r = httpx.get(f"{settings.prometheus_url}/api/v1/query", params={"query": query}, timeout=10.0)
+        r = httpx.get(f"{settings.prometheus_query_url}/api/v1/query", params={"query": query}, timeout=10.0)
         r.raise_for_status()
     except httpx.HTTPError as exc:
         raise HTTPException(502, f"Prometheus unreachable: {exc}")

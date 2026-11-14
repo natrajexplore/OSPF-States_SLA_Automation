@@ -1,6 +1,5 @@
 # OSPF SLA & States Automation
 
-![CI](https://github.com/natrajexplore/OSPF-States_SLA_Automation/actions/workflows/ci.yml/badge.svg)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 ![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)
@@ -34,7 +33,17 @@ and each topic also exists as a standalone lab folder.
 docker compose -f docker-compose.demo.yml up --build        # then open http://localhost:8082
 ```
 
-or without Docker: `powershell -ExecutionPolicy Bypass -File scripts\demo.ps1` (Windows) / `./scripts/demo.sh` (Linux, macOS),
+With the monitoring stack (Kafka, Prometheus, Grafana) running locally as well, the simulated lab feeds it live:
+
+```bash
+docker compose -f docker-compose.monitoring.yml up -d --build                                          # once
+docker compose -f docker-compose.demo.yml -f docker-compose.demo-telemetry.yml up -d --build          # http://localhost:8082
+```
+
+Grafana `http://localhost:3000`, Prometheus `http://localhost:9090` and Kafka UI `http://localhost:8080` then show the
+simulated adjacencies, and the dashboard's header links to them.
+
+Or without Docker: `powershell -ExecutionPolicy Bypass -File scripts\demo.ps1` (Windows) / `./scripts/demo.sh` (Linux, macOS),
 then open `http://localhost:5173`. The dashboard starts in **simulation mode**: the four Cisco IOS routers are modelled in the
 backend from their real baseline configurations, so every Apply, Rollback, verification, `show` command, 3D state and live event
 works end to end. Click **▶ Demo tour** on the Lab tab for a guided, captioned run through the main scenarios.
@@ -59,10 +68,12 @@ works end to end. Click **▶ Demo tour** on the Lab tab for a guided, captioned
 * **Fixes**: the monitor no longer reports a neighbor as lost when its dead time reads `840 msec` (scenario 16,
   `dead-interval minimal`); `O*IA` default routes are counted; the run stream answers 404 for an unknown run instead of hanging;
   a baseline reset logs its error and saves its run record; the CLI tab reports an SSH failure as a message instead of an HTTP 500;
-  scenario and router names are validated; API answers are never cached. Scenario 18 declares that it needs 17 (`requires:`), and
+  scenario and router names are validated; API answers and the page itself are never cached, so a browser never shows an old build after an update. Scenario 18 declares that it needs 17 (`requires:`), and
   the Lab tab says so.
-* **Tests and CI**: 56 offline tests ([`backend/tests/`](backend/tests/)), including every scenario's apply and rollback against the
-  simulated lab and a check that its assertions fail before Apply; GitHub Actions runs them and the frontend build on every push.
+* **Tests**: 56 offline tests ([`backend/tests/`](backend/tests/)), including every scenario's apply and rollback against the
+  simulated lab and a check that its assertions fail before Apply.
+* **Local Docker with live telemetry**: [`docker-compose.demo-telemetry.yml`](docker-compose.demo-telemetry.yml) connects the
+  simulated lab to the monitoring stack, so its adjacency events flow through Kafka, Prometheus and Grafana with no EVE-NG.
 
 ---
 
@@ -274,6 +285,7 @@ UI development: `cd frontend && npm install && VITE_API=http://<eve-vm>:8010 npm
 | `OSPF_CONSOLE_FALLBACK` | Use the EVE telnet console when SSH to a router fails |
 | `KAFKA_ADVERTISED_HOST`, `OSPF_KAFKA_BOOTSTRAP`, `OSPF_POLL_INTERVAL` | Kafka listener and the backend's poller (empty bootstrap disables publishing) |
 | `OSPF_GRAFANA_URL`, `OSPF_KAFKA_UI_URL`, `OSPF_PROMETHEUS_URL` | Links and queries used by the Lab, Kafka and Prometheus tabs |
+| `OSPF_PROMETHEUS_QUERY_URL` (default: `OSPF_PROMETHEUS_URL`) | Where the backend queries Prometheus, when it differs from the address the browser opens (for example `http://prometheus:9090` inside Docker) |
 | `OSPF_HOSTNAME_GUARD` (default `true`), `OSPF_CONNECT_RETRIES` (default `2`) | Refuse to configure a router whose prompt is not its inventory name; SSH connection attempts |
 | `OSPF_SIMULATE` (default `false`) | Simulation mode: the in-process router model instead of EVE-NG and SSH |
 | `OSPF_SIM_SETTLE_SCALE` (`0.1`), `OSPF_SIM_CONVERGE` (`4`) | Simulation: scenario `settle_seconds` multiplier, and the seconds an adjacency takes to reach FULL |
@@ -470,7 +482,7 @@ show it forming. It is a model, not an IOS emulator: commands outside the scenar
 on real routers some failures depend on timing the model fixes (for example the broadcast side's 40 s wait timer in scenario 10).
 Scenario 08 (BFD) passes in simulation but does not run on Dynamips c7200 (see [Status](#status)).
 
-## Tests and CI
+## Tests
 
 ```bash
 cd backend
@@ -482,8 +494,8 @@ python -m pytest tests -q          # 56 tests, about 6 s, no network
 checks its `verify` / `rollback_verify` assertions, plus that the apply assertions fail on the untouched baseline (so a scenario cannot
 pass by doing nothing). [`test_api.py`](backend/tests/test_api.py) drives the HTTP API (a full apply and rollback run, the CLI
 whitelist, input validation, credentials); [`test_units.py`](backend/tests/test_units.py) covers the hostname guard, the retry helper,
-IOS error detection, the monitor parsers and IOS mode handling; [`test_sim_timing.py`](backend/tests/test_sim_timing.py) checks that adjacencies re-form within each scenario's settle time. [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs the tests
-and the frontend build on every push and pull request.
+IOS error detection, the monitor parsers and IOS mode handling; [`test_sim_timing.py`](backend/tests/test_sim_timing.py) checks that adjacencies re-form within each scenario's settle time. Run them, and `npm run build` in `frontend/`, before
+deploying a change.
 
 ## Troubleshooting
 
