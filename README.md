@@ -25,7 +25,7 @@ shows a before/after diff, while a live telemetry pipeline (Kafka, Prometheus, G
 * **18 automated OSPF scenarios**: each concept (adjacency, DR/BDR, areas, stub, NSSA, externals, cost, fast convergence, OSPFv3)
   next to the production failure that goes with it, each with apply, verify, rollback and a before/after diff.
 * **Live 3D topology**: adjacencies turn green, amber or red as they happen, and every configuration line is drawn as a beam
-  from the automation engine to the router.
+  from the automation engine to the router. Light or dark scene with one click.
 * **Closed-loop telemetry**: poller → Kafka → Prometheus exporter → Grafana dashboard and 7 alert rules, fed by the real lab or
   by the simulator.
 * **Log in like an engineer**: PuTTY / SSH to every router. On the real lab this goes through the EVE-NG VM; in simulation, R1-R4
@@ -115,7 +115,8 @@ The **PuTTY** tab (`#putty`) has an **Open in PuTTY** button per router after a 
   `| include`, Ctrl-Z, `do`). It changes the same model the dashboard drives. The **PuTTY** tab lists every session with **Open in
   PuTTY**, copyable `putty.exe` / `ssh` commands and the host-key fingerprint; `putty-setup.ps1` builds its sessions from the new
   `GET /api/putty` for both simulation and the real lab.
-* **3D view: Light or Dark scene**, chosen with the Dark / Light button on the 3D toolbar (light by default, remembered per browser), independent of the page theme.
+* **3D theme toggle.** A **Dark / Light** button on the 3D toolbar switches the scene's palette (light by default, remembered per
+  browser), independently of the page theme. See [3D toolbar](#the-lab-tab-cli-credentials-and-putty-tabs).
 * **Simulation mode** (`OSPF_SIMULATE=true`). An OSPF model in the backend ([`backend/app/sim/`](backend/app/sim/)) that is driven by
   the same IOS configuration the routers receive and answers `show` commands in IOS format: adjacencies (hello/dead, area, stub
   flags, network type, MTU, OSPFv3 instance ID), non-preemptive DR/BDR election, LSDB, SPF with ECMP, inter-area, E2, NSSA N2 with
@@ -418,8 +419,24 @@ The **Lab** tab (`#lab`; it replaces the former Lab and Live 3D tabs) draws the 
 ABRs sit in both), the broadcast segment as a hub, and the SSH executor (the backend). Colours come from the monitor every 5 s: a link
 end is green when the adjacency is FULL (or 2-WAY between DROTHERs), amber while it forms (INIT, EXSTART…), red when the neighbor is
 lost; a router's ring is red when it stops answering. The **OSPFv2 (IPv4) / OSPFv3 (IPv6)** switch above the view chooses which
-protocol's adjacencies colour the links (OSPFv3 links stay grey until scenario 17 is applied). Orbit, zoom, **Rotate**, **Names** and **Reset view**; the 3D
-scene always uses its light palette, so it reads the same in the page's dark and light themes. Click a router to filter the transcript to it.
+protocol's adjacencies colour the links (OSPFv3 links stay grey until scenario 17 is applied). Click a router to filter the transcript to it.
+
+**3D toolbar** (top right of every 3D view, on the Lab and Learn tabs):
+
+| Button | What it does |
+|---|---|
+| **Play / Pause** | Starts or stops the animated packet (Learn tab packet flows only) |
+| **Rotate** | Slowly turns the scene; dragging the scene stops it |
+| **Names** | Shows or hides the labels (router names, router IDs and roles, area and segment names) |
+| **Reset view** | Puts the camera back to its starting position |
+| **Dark / Light** | Switches the 3D scene between its light palette (the default: pale background, deep blue / teal areas) and its dark palette (navy background, bright blue / teal areas). The button names the theme it switches *to*. |
+
+Mouse: drag to orbit, scroll to zoom, right-drag to pan.
+
+The 3D theme is separate from the page's **Light / Dark** button in the header, so any combination works: a dark page with a
+light scene is easy to read on a projector, an all-dark page suits a dark-mode screen recording. The choice is kept in the
+browser's local storage (key `ospf3dTheme`), so it survives a reload and applies to every 3D view; clear site data or press the button
+again to go back to light. Adjacency colours (green FULL, amber forming, red lost) and the amber scenario highlight are the same in both themes.
 
 Pick a scenario and click **Apply** or **Rollback**: the target routers glow, each SSH session starts with a pulse, and each
 configuration line travels as a beam from the executor to the router. The **SSH / CLI** panel shows the same session as it is typed:
