@@ -1,0 +1,10 @@
+{# The OSPFv3 Instance ID is set per interface on the area command; both ends of a link must use the same one.
+   The old statement is removed first so the interface is never in two instances at once. #}
+interface Ethernet1/0
+{% if rollback %}
+ no ipv6 ospf 1 area 1 instance 1
+ ipv6 ospf 1 area 1
+{% else %}
+ no ipv6 ospf 1 area 1
+ ipv6 ospf 1 area 1 instance 1
+{% endif %}

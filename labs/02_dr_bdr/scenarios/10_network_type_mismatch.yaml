@@ -1,0 +1,19 @@
+title: "NETWORK TYPE MISMATCH - R4 broadcast vs R3 point-to-point breaks the adjacency entirely"
+concept: network_type_mismatch
+summary: >
+  R4's side of the R3-R4 link is forced to `broadcast` while R3 stays `point-to-point` (the baseline for this
+  link), and R4's OSPF process is cleared to force a fresh negotiation under the mismatch (an already-Full
+  adjacency doesn't re-evaluate network type on its own). Network type is a local interpretation of the wire, not
+  renegotiated between peers, so the two routers disagree about whether DR/BDR election applies here, and the
+  adjacency never completes. A very common real incident on routed point-to-point handoffs (WAN circuits,
+  cross-connects) where one end's config was copied from a multi-access template. Rollback restores
+  point-to-point on R4.
+template: 10_network_type_mismatch.j2
+targets: [R4]
+post_commands:
+  - "clear ip ospf process"
+settle_seconds: 30
+verify:
+  - device: R3
+    command: "show ip ospf neighbor"
+    must_not_match: '10\.255\.0\.4\s+\d+\s+FULL'

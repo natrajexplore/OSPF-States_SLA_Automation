@@ -1,0 +1,6 @@
+{# Area ID travels in every Hello. If the two ends of a link disagree, IOS silently drops the Hello - visible only
+   in `debug ip ospf hello` / `debug ip ospf adj` - no adjacency ever starts, and there is no error on the
+   interface itself. A classic root cause during area boundary migrations, when one router is re-homed to a new
+   area before its neighbor is. #}
+interface {{ area1_link_r4_if }}
+ ip ospf 1 area {{ 1 if rollback else 0 }}

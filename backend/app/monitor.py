@@ -15,14 +15,15 @@ from .inventory import Device, build_devices
 
 log = logging.getLogger("ospf.monitor")
 
-# 10.255.0.3   100   FULL/DR   00:00:33   10.0.123.3   Ethernet1/0      (role is "-" on point-to-point)
+# 10.255.0.3   100   FULL/DR   00:00:33   10.0.123.3   Ethernet1/0      (role is "-" on point-to-point;
+# the dead time reads "840 msec" with `ip ospf dead-interval minimal`, scenario 16)
 _NBR = re.compile(
-    r"^(\d{1,3}(?:\.\d{1,3}){3})\s+(\d+)\s+([A-Z0-9]+)/\s*(\S+)\s+(?:\d\d:\d\d:\d\d|-)\s+"
+    r"^(\d{1,3}(?:\.\d{1,3}){3})\s+(\d+)\s+([A-Z0-9]+)/\s*(\S+)\s+(?:\d\d:\d\d:\d\d|\d+ msec|-)\s+"
     r"(\d{1,3}(?:\.\d{1,3}){3})\s+(\S+)\s*$"
 )
 # Et1/0   1   0   10.0.123.1/24   10   DR   2/2
 _IFACE = re.compile(r"^(\S+)\s+\d+\s+(\S+)\s+(\d{1,3}(?:\.\d{1,3}){3}/\d+)\s+(\d+)\s+(\S+)\s+(\d+)/(\d+)\s*$")
-_ROUTE = re.compile(r"^(O(?: IA| E1| E2| N1| N2)?)\s", re.MULTILINE)
+_ROUTE = re.compile(r"^(O(?: IA| E1| E2| N1| N2|\*IA|\*E2|\*N2)?)\s", re.MULTILINE)
 # 10.1.34.2   1/1   Up   Up   Et1/0
 _BFD = re.compile(r"^(\d{1,3}(?:\.\d{1,3}){3})\s+\d+/\d+\s+(?:\S+\s+)?(Up|Down|Init|AdminDown)\s+(\S+)\s*$", re.IGNORECASE)
 _SLA_ID = re.compile(r"IPSLA operation id:\s*(\d+)")
@@ -47,6 +48,25 @@ def parse_neighbors(output: str) -> list[dict]:
         rid, pri, state, role, addr, iface = m.groups()
         out.append({"neighbor": rid, "priority": int(pri), "state": state, "state_code": STATE_CODE.get(state, 0),
                     "role": role, "address": addr, "interface": iface, "full": state == "FULL"})
+    return out
+
+
+# OSPFv3: the address column is replaced by the neighbor's Interface ID
+# 10.255.0.1   1   FULL/DROTHER   00:00:34   3   Ethernet1/0
+_NBR6 = re.compile(
+    r"^(\d{1,3}(?:\.\d{1,3}){3})\s+(\d+)\s+([A-Z0-9]+)/\s*(\S+)\s+(?:\d\d:\d\d:\d\d|\d+ msec|-)\s+(\d+)\s+(\S+)\s*$"
+)
+
+
+def parse_neighbors_v6(output: str) -> list[dict]:
+    out = []
+    for line in output.splitlines():
+        m = _NBR6.match(line.strip())
+        if not m:
+            continue
+        rid, pri, state, role, intf_id, iface = m.groups()
+        out.append({"neighbor": rid, "priority": int(pri), "state": state, "state_code": STATE_CODE.get(state, 0),
+                    "role": role, "interface_id": int(intf_id), "interface": iface, "full": state == "FULL"})
     return out
 
 
@@ -93,18 +113,19 @@ def parse_sla(output: str) -> list[dict]:
 
 def _poll_one(dev: Device) -> dict | None:
     try:
-        snap = {
-            "neighbors": parse_neighbors(dev_mod.show(dev, "show ip ospf neighbor")),
-            "interfaces": parse_interfaces(dev_mod.show(dev, "show ip ospf interface brief")),
-            "routes": parse_routes(dev_mod.show(dev, "show ip route ospf")),
-            "sla": [],
-            "bfd": [],
+        cmds = ["show ip ospf neighbor", "show ip ospf interface brief", "show ip route ospf", "show ipv6 ospf neighbor"]
+        cmds += ["show bfd neighbors"] if dev.bfd else []
+        cmds += ["show ip sla statistics"] if dev.sla else []
+        out = dict(zip(cmds, dev_mod.show_many(dev, cmds)))
+        return {
+            "neighbors": parse_neighbors(out["show ip ospf neighbor"]),
+            "interfaces": parse_interfaces(out["show ip ospf interface brief"]),
+            "routes": parse_routes(out["show ip route ospf"]),
+            # OSPFv3 (scenarios 17-18): empty when the router runs no IPv6 OSPF. Shown in the UI; not turned into events/metrics.
+            "neighbors_v6": parse_neighbors_v6(out["show ipv6 ospf neighbor"]),
+            "sla": parse_sla(out["show ip sla statistics"]) if dev.sla else [],
+            "bfd": parse_bfd(out["show bfd neighbors"]) if dev.bfd else [],
         }
-        if dev.bfd:
-            snap["bfd"] = parse_bfd(dev_mod.show(dev, "show bfd neighbors"))
-        if dev.sla:
-            snap["sla"] = parse_sla(dev_mod.show(dev, "show ip sla statistics"))
-        return snap
     except Exception as exc:  # noqa: BLE001
         log.info("poll %s failed: %s", dev.name, exc)
         return None
@@ -121,7 +142,7 @@ def _process(dev: Device, snap: dict | None) -> None:
     REACHABLE[dev.name] = reachable
     if snap is None:
         # keep the last known tables; only the reachability flag changes
-        LAST[dev.name] = {**LAST.get(dev.name, {"router": dev.name, "role": dev.role, "neighbors": [],
+        LAST[dev.name] = {**LAST.get(dev.name, {"router": dev.name, "role": dev.role, "neighbors": [], "neighbors_v6": [],
                                                  "interfaces": [], "routes": {}, "sla": [], "bfd": []}), "reachable": False}
         bus.emit(settings.topic_snapshots, dev.name, LAST[dev.name], ui=False)
         return

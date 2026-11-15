@@ -8,3 +8,5 @@ docs
 src
 **/__pycache__
 backend/runs
+backend/.venv-demo
+backend/tests/.runs

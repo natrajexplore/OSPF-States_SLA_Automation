@@ -13,3 +13,7 @@ wheels/
 .env
 backend/runs/
 node_modules/
+backend/tests/.runs/
+backend/.venv-demo/
+.pytest_cache/
+frontend/dist/

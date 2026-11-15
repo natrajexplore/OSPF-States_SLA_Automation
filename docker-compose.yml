@@ -19,6 +19,7 @@ services:
       - ./backend/templates:/app/templates:ro
       - ./backend/scenarios:/app/scenarios:ro
       - ./backend/baseline:/app/baseline:ro
+      - ./labs:/app/labs:ro                  # standalone labs: Credentials tab and putty-setup.ps1 list their routers
       - ospf_runs:/app/runs
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8010/api/health').status==200 else 1)"]

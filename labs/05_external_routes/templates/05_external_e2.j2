@@ -1,0 +1,10 @@
+{# R1 becomes an ASBR: a static route is redistributed into OSPF as an external (type 5) LSA. #}
+{% if rollback %}
+router ospf 1
+ no redistribute static
+no ip route {{ ext_prefix }} {{ ext_mask }} Null0
+{% else %}
+ip route {{ ext_prefix }} {{ ext_mask }} Null0
+router ospf 1
+ redistribute static subnets metric {{ ext_metric }} metric-type {{ ext_metric_type }}
+{% endif %}

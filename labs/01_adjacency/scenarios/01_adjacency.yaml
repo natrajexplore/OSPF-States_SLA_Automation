@@ -1,0 +1,17 @@
+title: "ADJACENCY - a hello-interval mismatch breaks the R3-R4 neighbor state machine"
+concept: adjacency_states
+summary: >
+  R4 changes its hello-interval to 5 s on the area 1 link (dead becomes 20 s) while R3 stays on 10/40.
+  Hello parameters no longer match, so R3 and R4 drop out of Full and the adjacency cannot re-form:
+  OSPF neighbor states are visible in `show ip ospf neighbor` (Down/Init/2-Way/ExStart/Exchange/Loading/Full)
+  and as ospf_neighbor_state in Grafana. Rollback restores 10 s and the adjacency climbs back to Full.
+template: 01_adjacency.j2
+targets: [R4]
+settle_seconds: 60
+verify:
+  - device: R3
+    command: "show ip ospf neighbor"
+    must_not_match: '10\.255\.0\.4\s+\d+\s+FULL'
+  - device: R4
+    command: "show ip ospf neighbor"
+    must_not_match: '10\.255\.0\.3\s+\d+\s+FULL'

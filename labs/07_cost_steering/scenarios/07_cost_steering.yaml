@@ -1,0 +1,27 @@
+title: "COST - raising the R4-R3 link cost steers R4's traffic to R1 through R2"
+concept: cost_steering
+summary: >
+  At baseline every link costs 10, so R4 has two equal-cost inter-area paths to R1's loopback (via R3 and
+  via R2: ECMP). Setting `ip ospf cost 100` on R4's Ethernet1/0 leaves only the path via R2 (10.1.24.1).
+  The IP SLA probe R4 -> R1 keeps running over the new path, and ospf_interface_cost shows the change in
+  Grafana. Rollback restores cost 10 and both paths return. (Cost defaults come from
+  reference-bandwidth / interface bandwidth: 100 Mb / 10 Mb Ethernet = 10.)
+template: 07_cost_steering.j2
+targets: [R4]
+vars:
+  steer_cost: 100
+settle_seconds: 15
+verify:
+  - device: R4
+    command: "show ip route 10.255.0.1"
+    expect_regex: '10\.1\.24\.1, from'
+  - device: R4
+    command: "show ip route 10.255.0.1"
+    must_not_match: '10\.1\.34\.1, from'
+rollback_verify:
+  - device: R4
+    command: "show ip route 10.255.0.1"
+    expect_regex: '10\.1\.34\.1, from'
+  - device: R4
+    command: "show ip route 10.255.0.1"
+    expect_regex: '10\.1\.24\.1, from'

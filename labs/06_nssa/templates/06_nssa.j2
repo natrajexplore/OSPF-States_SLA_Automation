@@ -1,0 +1,24 @@
+{# NSSA: area 1 keeps type-5 out but lets R4 originate externals as type 7; the ABR with the highest router-id (R3) translates them to type 5.
+   Every router in area 1 (R2, R3, R4) must agree on the area type, or that adjacency will not form. #}
+{% if rollback %}
+{% if target == "R4" %}
+router ospf 1
+ no redistribute connected
+ no area 1 nssa
+no route-map LO1-ONLY
+{% else %}
+router ospf 1
+ no area 1 nssa
+{% endif %}
+{% else %}
+{% if target == "R4" %}
+route-map LO1-ONLY permit 10
+ match interface Loopback1
+router ospf 1
+ area 1 nssa
+ redistribute connected subnets route-map LO1-ONLY
+{% else %}
+router ospf 1
+ area 1 nssa
+{% endif %}
+{% endif %}

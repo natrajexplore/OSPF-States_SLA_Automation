@@ -1,0 +1,26 @@
+title: "SUBNETS KEYWORD - redistributing static without 'subnets' silently drops a subnetted route"
+concept: subnets_keyword
+summary: >
+  R1 redistributes a static route to 172.16.199.0/24 into OSPF - but without the `subnets` keyword. Because
+  172.16.199.0/24 is a subnet of the classful 172.16.0.0/16 network, IOS's classful-only redistribution rule
+  silently drops it: the command is accepted, nothing is logged, and the route simply never appears on R3 or R4.
+  This is a distinct, separate prefix from scenario 05's 172.16.99.0/24 so the two don't collide - but both
+  configure `redistribute static` on R1, and only one such line can be active at a time, so roll one back before
+  applying the other.
+template: 13_subnets_keyword.j2
+targets: [R1]
+vars:
+  bug_prefix: 172.16.199.0
+  bug_mask: 255.255.255.0
+settle_seconds: 20
+verify:
+  - device: R3
+    command: "show ip route ospf"
+    must_not_match: '172\.16\.199\.0'
+rollback_verify:
+  - device: R3
+    command: "show ip route ospf"
+    must_not_match: '172\.16\.199\.0'
+  - device: R1
+    command: "show running-config | section router ospf"
+    must_not_match: 'redistribute static'

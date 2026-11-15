@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Generate an EVE-NG topology file from inventory.yaml.
 
-    python backend/scripts/build_lab.py [--inventory FILE] [--out labs/ospf-sla.unl] [--image NAME]
+    python backend/scripts/build_lab.py [--inventory FILE] [--out labs/ospf-sla.unl] [--image NAME] [--zip]
 
 Produces a Cisco 7206VXR (c7200 / Dynamips) lab: N nodes, bridge links (point-to-point or shared segment) and one pnet1 (Cloud1) management bridge. Import it in EVE-NG
 (Import, or drop into /opt/unetlab/labs/), then push configs with
@@ -94,6 +94,7 @@ def main() -> int:
     ap.add_argument("--out", default=str(ROOT.parent / "labs" / "ospf-sla.unl"))
     ap.add_argument("--image", default=None)
     ap.add_argument("--inventory", default=str(INVENTORY), help="lab definition YAML (default: backend/inventory.yaml)")
+    ap.add_argument("--zip", action="store_true", help="also write <out>.zip (EVE's web Import rejects a bare .unl)")
     args = ap.parse_args()
 
     inv = yaml.safe_load(Path(args.inventory).read_text())
@@ -108,6 +109,11 @@ def main() -> int:
     n_nodes = len(inv["devices"])
     n_links = len(inv["links"])
     print(f"wrote {out}  ({n_nodes} c7200 nodes, {n_links} links + Cloud1)")
+    if args.zip:
+        import zipfile
+        with zipfile.ZipFile(out.with_suffix(".zip"), "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.write(out, out.name)                     # .unl at the top level of the zip
+        print(f"wrote {out.with_suffix('.zip')}")
     return 0
 
 

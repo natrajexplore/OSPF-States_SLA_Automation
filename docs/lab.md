@@ -75,6 +75,27 @@ direction (something appears on apply, disappears on rollback), same as 01-08.
 Interaction notes: 14 reuses R4's Loopback1/route-map like 03 and 06 - roll those back first. 13 and 05 both set
 `redistribute static` on R1 - only one is active at a time.
 
+## OSPFv3 scenarios (17-18)
+
+The baseline is IPv4-only. Scenario 17 adds IPv6 and OSPFv3 (classic `ipv6 router ospf 1`) with the same design as OSPFv2;
+its rollback removes all of it. Scenario 18 needs 17 applied.
+
+| Router | Router ID | Loopback0 (IPv6) | e1/0 | e1/1 |
+|---|---|---|---|---|
+| R1 | 10.255.0.1 | 2001:db8:255::1/128 area 0 | 2001:db8:123::1/64 area 0, prio 1 | - |
+| R2 | 10.255.0.2 | 2001:db8:255::2/128 area 0 | 2001:db8:123::2/64 area 0, prio 50 | 2001:db8:24::1/64 area 1, p2p |
+| R3 | 10.255.0.3 | 2001:db8:255::3/128 area 0 | 2001:db8:123::3/64 area 0, prio 100 | 2001:db8:34::1/64 area 1, p2p |
+| R4 | 10.255.0.4 | 2001:db8:255::4/128 area 1 | 2001:db8:34::2/64 area 1, p2p | 2001:db8:24::2/64 area 1, p2p |
+
+| # | Concept | What happens |
+|---|---|---|
+| 17 | OSPFv3 dual stack | OSPFv3 beside OSPFv2: link-local neighbors and next hops, R3 DR, R1 learns 2001:db8:255::4/128 as `OI` from both ABRs |
+| 18 | Instance-ID mismatch | R4 e1/0 in OSPFv3 instance 1, R3 in 0: the v3 R3-R4 adjacency drops, OSPFv2 on the same link stays FULL |
+
+Both passed apply and rollback on the lab on 2026-09-27 (17 in 120 s, 18 in about 60 s each way). The monitor polls
+`show ipv6 ospf neighbor` together with its other commands (one SSH session per router per poll); OSPFv3 neighbors appear in
+`/api/monitor/state` as `neighbors_v6` and in the UI, but are not yet turned into Kafka events or Prometheus metrics.
+
 ## Adding a scenario
 
 1. `backend/templates/NN_name.j2`: branch on `rollback` and, when several routers are targeted, on `target`.

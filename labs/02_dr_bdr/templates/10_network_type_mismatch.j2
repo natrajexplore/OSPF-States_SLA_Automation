@@ -1,0 +1,10 @@
+{# Both ends of a link must agree on OSPF network type. A broadcast segment runs DR/BDR election and uses the
+   224.0.0.5/.6 multicast pair differently than a point-to-point link does. Mismatch it - easy to do by
+   copy-pasting an interface template across circuit types - and hellos are accepted but the neighbor never
+   passes ExStart, because each side expects a different adjacency behavior from the other. #}
+interface {{ area1_link_r4_if }}
+{% if rollback %}
+ ip ospf network point-to-point
+{% else %}
+ ip ospf network broadcast
+{% endif %}

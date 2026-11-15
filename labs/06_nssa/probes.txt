@@ -1,0 +1,4 @@
+R3|show ip route ospf
+R1|show ip route ospf
+R1|show ip ospf database external
+R3|show ip ospf database nssa-external

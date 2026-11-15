@@ -1,0 +1,5 @@
+R3|show ipv6 ospf neighbor
+R4|show ipv6 ospf neighbor
+R1|show ipv6 route ospf
+R3|show ip ospf neighbor
+R4|show ipv6 ospf interface Ethernet1/0

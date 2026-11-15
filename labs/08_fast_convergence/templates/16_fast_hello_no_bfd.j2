@@ -1,0 +1,10 @@
+{# ip ospf dead-interval minimal hello-multiplier N: N hellos/second, neighbor declared down after 1s of silence -
+   no BFD needed. A genuinely used production fallback when BFD isn't available, or - as documented for
+   scenario 08 on this lab - isn't safe to run at all. #}
+interface {{ "Ethernet1/1" if target == "R3" else "Ethernet1/0" }}
+{% if rollback %}
+ no ip ospf dead-interval minimal hello-multiplier 4
+ ip ospf hello-interval 10
+{% else %}
+ ip ospf dead-interval minimal hello-multiplier 4
+{% endif %}

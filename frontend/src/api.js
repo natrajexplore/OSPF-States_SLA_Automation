@@ -49,7 +49,8 @@ export function useRun() {
   const close = () => es.current && (es.current.close(), (es.current = null));
   useEffect(() => close, []);
 
-  const start = useCallback(async (url, body) => {
+  // Resolves with the final run record (or null if the run could not start), so runs can be chained (Lab demo tour).
+  const start = useCallback((url, body) => new Promise((resolve) => (async () => {
     close();
     setLines([]);
     setRun(null);
@@ -82,9 +83,11 @@ export function useRun() {
           src.close();
           if (rec.log) setLines(rec.log);
           setRun(rec);
+          resolve(rec);
         } catch (e) {
           done = true;
           setError(e.message);
+          resolve(null);
         }
         setBusy(false);
       };
@@ -98,8 +101,9 @@ export function useRun() {
     } catch (e) {
       setError(e.message);
       setBusy(false);
+      resolve(null);
     }
-  }, []);
+  })()), []);
 
   return { start, lines, run, runId, busy, error };
 }

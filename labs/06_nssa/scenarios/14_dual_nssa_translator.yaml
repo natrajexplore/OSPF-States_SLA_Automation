@@ -1,0 +1,31 @@
+title: "TRANSLATOR TAKEOVER - forcing 'always' on the wrong NSSA ABR silently bypasses the elected one"
+concept: dual_nssa_translator
+summary: >
+  Area 1 becomes NSSA on R2, R3 and R4 (like scenario 06), and R4 originates its Loopback1 as a type-7 LSA. With
+  two ABRs (R2, R3), OSPF is supposed to elect exactly one translator - the higher router-id, R3
+  (10.255.0.3 > 10.255.0.2). This scenario forces `area 1 nssa translate type7 always` on R2 instead - and on
+  this platform R2 originating the type-5 LSA is enough for R3 to never originate its own competing copy, even
+  though R3 is the properly elected ABR. Verified live: R1 ends up with exactly one type-5 LSA for 10.4.4.0/24,
+  advertised by R2 (10.255.0.2), never R3 (10.255.0.3). The real production risk isn't duplicate LSAs - it's a
+  silent translator takeover: `always` on the wrong ABR (often a smaller edge device, or leftover from a
+  PE-CE MPLS/NSSA design copied onto a router that didn't need it) quietly puts a different, unintended router in
+  charge of every external route entering the backbone from that NSSA. Self-contained (does not require 06 to
+  already be applied) but touches the same R4 Loopback1/route-map mechanism as 03 and 06 - roll those back first
+  if applied. Rollback removes NSSA and the forced translation from all three routers.
+template: 14_dual_nssa_translator.j2
+targets: [R2, R3, R4]
+settle_seconds: 70
+verify:
+  - device: R1
+    command: "show ip ospf database external"
+    expect_regex: 'Advertising Router: 10\.255\.0\.2'
+  - device: R1
+    command: "show ip ospf database external"
+    must_not_match: 'Advertising Router: 10\.255\.0\.3'
+rollback_verify:
+  - device: R1
+    command: "show ip ospf database external"
+    must_not_match: 'Advertising Router: 10\.255\.0\.2'
+  - device: R3
+    command: "show ip ospf neighbor"
+    expect_regex: '10\.255\.0\.4\s+\d+\s+FULL'

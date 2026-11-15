@@ -6,10 +6,10 @@ import re
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from . import bus, kafka_tail, monitor, scenarios
+from . import bus, kafka_tail, labinfo, monitor, scenarios
 from . import devices as dev_mod
 from .config import settings
 from .eveng import EveNGClient, EveNGError
@@ -31,7 +31,22 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="ospf-sla-executor", lifespan=lifespan)
-_eve = EveNGClient()
+if settings.simulate:
+    from .sim.driver import SimEveClient
+    _eve = SimEveClient()
+else:
+    _eve = EveNGClient()
+
+_SID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+@app.middleware("http")
+async def no_cache(request: Request, call_next):
+    """API answers are live state: never let a browser or proxy serve a stale copy."""
+    resp = await call_next(request)
+    if request.url.path.startswith("/api/") and "Cache-Control" not in resp.headers:
+        resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 @app.get("/api/health")
@@ -43,17 +58,18 @@ def health() -> dict:
 def public_config() -> dict:
     return {"grafana_url": settings.grafana_url, "kafka_ui_url": settings.kafka_ui_url,
             "prometheus_url": settings.prometheus_url, "kafka_enabled": bool(settings.kafka_bootstrap),
-            "poll_interval": settings.poll_interval}
+            "poll_interval": settings.poll_interval, "simulate": settings.simulate,
+            "mode": "simulation" if settings.simulate else "eve-ng"}
 
 
 @app.get("/api/prometheus/query")
 def prometheus_query(query: str) -> dict:
     """Thin proxy for a PromQL instant query, so the browser doesn't need direct network access to
     Prometheus (it runs on the Windows host; the UI is served from the EVE-NG VM)."""
-    if not settings.prometheus_url:
+    if not settings.prometheus_query_url:
         raise HTTPException(503, "OSPF_PROMETHEUS_URL is not set")
     try:
-        r = httpx.get(f"{settings.prometheus_url}/api/v1/query", params={"query": query}, timeout=10.0)
+        r = httpx.get(f"{settings.prometheus_query_url}/api/v1/query", params={"query": query}, timeout=10.0)
         r.raise_for_status()
     except httpx.HTTPError as exc:
         raise HTTPException(502, f"Prometheus unreachable: {exc}")
@@ -133,6 +149,19 @@ def topology() -> dict:
     return {"nodes": nodes, "links": links}
 
 
+@app.get("/api/graph")
+def lab_graph() -> dict:
+    """Routers, tiers and links of the shared lab, for the 3D views (live state comes from /api/monitor/state)."""
+    return labinfo.graph()
+
+
+@app.get("/api/credentials")
+def credentials() -> dict:
+    """Login, password and enable secret of every router of every lab, checked against its baseline. Read by the
+    Credentials tab and scripts/putty-setup.ps1. Anyone who can open the dashboard can read them: fine for a private lab VM."""
+    return {"labs": labinfo.credentials()}
+
+
 _SHOW_ALLOWED = [re.compile(p) for p in (
     r"show ip ospf",
     r"show ip ospf neighbor(?: detail)?",
@@ -143,6 +172,11 @@ _SHOW_ALLOWED = [re.compile(p) for p in (
     r"show ip sla statistics",
     r"show bfd neighbors(?: details)?",
     r"show running-config \| section router ospf",
+    # OSPFv3 (scenarios 17-18)
+    r"show ipv6 ospf(?: neighbor(?: detail)?| interface(?: brief| [\w/.-]{1,20})?| database(?: [a-z-]{1,20})?| border-routers)?",
+    r"show ipv6 route(?: ospf| [0-9a-fA-F:]{2,39}(?:/\d{1,3})?)?",
+    r"show ipv6 interface brief",
+    r"show running-config \| section ipv6 router ospf",
 )]
 
 
@@ -155,7 +189,11 @@ def device_show(name: str, cmd: str) -> dict:
     cmd = " ".join(cmd.split())
     if len(cmd) > 120 or not any(p.fullmatch(cmd) for p in _SHOW_ALLOWED):
         raise HTTPException(400, "command not allowed (read-only OSPF/route show commands only)")
-    return {"device": name, "command": cmd, "output": dev_mod.show(devs[name], cmd)}
+    try:
+        output = dev_mod.show(devs[name], cmd)
+    except Exception as exc:  # noqa: BLE001 - SSH/console failure: report it instead of a bare 500
+        raise HTTPException(502, f"{name}: {exc}")
+    return {"device": name, "command": cmd, "output": output}
 
 
 @app.get("/api/scenarios")
@@ -163,24 +201,35 @@ def scenario_list() -> list[dict]:
     return scenarios.list_scenarios()
 
 
+def _check_sid(sid: str) -> None:
+    if not _SID.match(sid):
+        raise HTTPException(400, "invalid scenario id")
+
+
 @app.post("/api/scenarios/{sid}/run")
 async def scenario_run(sid: str) -> dict:
+    _check_sid(sid)
     try:
         return {"run_id": await scenarios.run_scenario(sid, rollback=False)}
     except FileNotFoundError:
         raise HTTPException(404, sid)
     except scenarios.TargetsBusy as exc:
         raise HTTPException(409, str(exc))
+    except scenarios.ScenarioError as exc:
+        raise HTTPException(400, str(exc))
 
 
 @app.post("/api/scenarios/{sid}/rollback")
 async def scenario_rollback(sid: str) -> dict:
+    _check_sid(sid)
     try:
         return {"run_id": await scenarios.run_scenario(sid, rollback=True)}
     except FileNotFoundError:
         raise HTTPException(404, sid)
     except scenarios.TargetsBusy as exc:
         raise HTTPException(409, str(exc))
+    except scenarios.ScenarioError as exc:
+        raise HTTPException(400, str(exc))
 
 
 @app.post("/api/lab/reset")
@@ -189,6 +238,8 @@ async def lab_reset(nodes: list[str] | None = None) -> dict:
         return {"run_id": await scenarios.reset_baseline(nodes)}
     except scenarios.TargetsBusy as exc:
         raise HTTPException(409, str(exc))
+    except scenarios.ScenarioError as exc:
+        raise HTTPException(400, str(exc))
 
 
 @app.get("/api/runs/{run_id}")
@@ -200,6 +251,8 @@ def run_detail(run_id: str) -> dict:
 
 @app.get("/api/stream/{run_id}")
 async def stream(run_id: str) -> StreamingResponse:
+    if run_id not in scenarios.RUNS:
+        raise HTTPException(404, run_id)          # an unknown id would otherwise hold the stream open forever
     q = subscribe(run_id)
 
     async def gen():

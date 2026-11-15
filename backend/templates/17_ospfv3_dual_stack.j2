@@ -1,0 +1,39 @@
+{# OSPFv3 beside OSPFv2 (classic IOS syntax). Enabled per interface, not with network statements; neighbors use link-local
+   addresses; the router ID is a 32-bit number and must be set when the router has no IPv4 address to borrow one from.
+   Rollback removes the interface commands first, then the addresses, the process and IPv6 routing. #}
+{% set r = v6[target] %}
+{% if rollback %}
+interface Loopback0
+ no ipv6 ospf 1 area {{ r.loopback.area }}
+ no ipv6 address
+{% for i in r.ifs %}
+interface {{ i.name }}
+ no ipv6 ospf 1 area {{ i.area }}
+{% if i.get("p2p") %}
+ no ipv6 ospf network point-to-point
+{% else %}
+ no ipv6 ospf priority
+{% endif %}
+ no ipv6 address
+{% endfor %}
+no ipv6 router ospf 1
+no ipv6 unicast-routing
+{% else %}
+ipv6 unicast-routing
+ipv6 router ospf 1
+ router-id {{ r.rid }}
+ log-adjacency-changes detail
+interface Loopback0
+ ipv6 address {{ r.loopback.addr }}
+ ipv6 ospf 1 area {{ r.loopback.area }}
+{% for i in r.ifs %}
+interface {{ i.name }}
+ ipv6 address {{ i.addr }}
+{% if i.get("p2p") %}
+ ipv6 ospf network point-to-point
+{% else %}
+ ipv6 ospf priority {{ i.priority }}
+{% endif %}
+ ipv6 ospf 1 area {{ i.area }}
+{% endfor %}
+{% endif %}

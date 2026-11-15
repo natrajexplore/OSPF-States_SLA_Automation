@@ -1,0 +1,9 @@
+{# Priority 0 = never DR/BDR; highest priority wins, router-id breaks ties. Only takes effect after re-election. #}
+interface {{ lan_if }}
+{% if target == "R1" %}
+ ip ospf priority {{ 1 if rollback else 255 }}
+{% elif target == "R3" %}
+ ip ospf priority {{ 100 if rollback else 0 }}
+{% else %}
+ ip ospf priority 50
+{% endif %}

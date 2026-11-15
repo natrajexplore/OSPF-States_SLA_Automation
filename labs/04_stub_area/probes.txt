@@ -1,0 +1,3 @@
+R4|show ip route ospf
+R3|show ip ospf neighbor
+R2|show ip ospf neighbor
