@@ -83,3 +83,44 @@ def test_ping_and_traceroute():
     tr = traceroute(lab().model, snap, "R4", "10.255.0.1")
     assert "1 10.1.3" in tr or "1 10.1.2" in tr
     assert "10.255.0.1" in tr.splitlines()[-1]
+
+
+def test_tab_completion_like_ios():
+    from app.sim.clitree import complete, config_tree
+    from app.sim.sshd import TREE
+    assert complete("sh", TREE) == "show "
+    assert complete("sh ip ospf ne", TREE) == "sh ip ospf neighbor "
+    assert complete("sh ip int br", TREE) == "sh ip int brief "
+    assert complete("sh int e", TREE) == "sh int Ethernet"                 # interface type, no space: type 1/0
+    assert complete("sh i", TREE) is None                                  # interfaces / ip / inventory: ambiguous
+    assert complete("show ip ", TREE) is None
+    cfg = config_tree(("global",), TREE)
+    assert complete("int f", cfg) == "int FastEthernet"
+    assert complete("router o", cfg) == "router ospf "
+    ifc = config_tree(("if", "Ethernet1/0"), TREE)
+    assert complete("ip ospf hel", ifc) == "ip ospf hello-interval "
+    assert complete("no shut", ifc) == "no shutdown "
+    assert complete("do sh ip ro", ifc) == "do sh ip route "
+    rtr = config_tree(("ospf",), TREE)
+    assert complete("area 1 nssa no-s", rtr) == "area 1 nssa no-summary "
+
+
+def test_question_mark_help_like_ios():
+    from app.sim.clitree import config_tree, describe, help_for
+    from app.sim.sshd import TREE
+    assert help_for("sh ip o", TREE) == ["ospf"]
+    words = help_for("show ip ospf ", TREE)
+    assert "neighbor" in words and "<cr>" in words
+    assert "Neighbor list" in describe(words)
+    assert help_for("show interfaces ", TREE)[:1] == ["description"] and "Ethernet" in help_for("show interfaces ", TREE)
+    ifc = config_tree(("if", "Ethernet1/0"), TREE)
+    assert {"hello-interval", "cost", "network"} <= set(help_for("ip ospf ", ifc))
+
+
+def test_negated_commands_need_no_arguments():
+    from app.sim.clitree import config_tree, parse
+    from app.sim.sshd import TREE
+    ifc = config_tree(("if", "Ethernet1/0"), TREE)
+    assert parse("no ip add", ifc) == ["no", "ip", "address"]
+    assert parse("no ip ospf cost", ifc) == ["no", "ip", "ospf", "cost"]
+    assert "<cr>" not in __import__("app.sim.clitree", fromlist=["help_for"]).help_for("ip address ", ifc)

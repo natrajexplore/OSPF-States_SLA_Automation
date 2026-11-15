@@ -26,6 +26,8 @@ from .driver import lab
 from .iosconfig import _GLOBAL, _IF_SUB, _OSPF_SUB, _RMAP_SUB, _SLA_SUB, ConfigSession
 from .iosshow import ping as sim_ping, section, traceroute as sim_traceroute
 from .render import INVALID
+from .clitree import (PIPE_TREE, ParseError, build, columns, complete, config_tree, describe, describe_ctx,
+                      help_for as _help_for, parse as _parse)
 
 log = logging.getLogger("ospf.sim.ssh")
 
@@ -33,14 +35,14 @@ log = logging.getLogger("ospf.sim.ssh")
 # One command per line; `a|b` = alternatives at that position, <a> = an argument (interface, address, name, number).
 _EXEC = """
 show running-config
-show running-config interface <a>
+show running-config interface <if>
 show startup-config
 show interfaces
 show interfaces description
-show interfaces <a>
+show interfaces <if>
 show ip interface
 show ip interface brief
-show ip interface <a>
+show ip interface <if>
 show ip protocols
 show ip protocols summary
 show ip route
@@ -51,10 +53,10 @@ show ip route <a> <a>
 show ip ospf
 show ip ospf neighbor
 show ip ospf neighbor detail
-show ip ospf neighbor <a>
+show ip ospf neighbor <if>
 show ip ospf interface
 show ip ospf interface brief
-show ip ospf interface <a>
+show ip ospf interface <if>
 show ip ospf database
 show ip ospf database router|network|summary|asbr-summary|external|nssa-external|database-summary
 show ip ospf border-routers|statistics|traffic|events|rib|virtual-links|summary-address
@@ -84,7 +86,7 @@ show cdp neighbors
 show cdp neighbors detail
 show arp|users|history|terminal|privilege|logging|clock|version|inventory|line|snmp|access-lists|standby|track|boot|environment|tech-support|debugging|hosts
 show controllers
-show controllers <a>
+show controllers <if>
 show diag
 show processes cpu
 show processes cpu sorted|history
@@ -114,86 +116,16 @@ ping vrf <a> <a> repeat|source|size <a>
 traceroute <a>
 traceroute vrf <a> <a>
 """
-LEAF = "$"
-ARG = "<a>"
-
-
-def _build(spec: str) -> dict:
-    root: dict = {}
-    for line in spec.strip().splitlines():
-        nodes = [root]
-        for tok in line.split():
-            nxt = []
-            for node in nodes:
-                for alt in tok.split("|"):
-                    nxt.append(node.setdefault(alt, {}))
-            nodes = nxt
-        for node in nodes:
-            node[LEAF] = True
-    return root
-
-
-TREE = _build(_EXEC)
-
-
-class ParseError(Exception):
-    def __init__(self, kind: str, pos: int = 0, words: list[str] | None = None) -> None:
-        super().__init__(kind)
-        self.kind, self.pos, self.words = kind, pos, words or []
+TREE = build(_EXEC)
 
 
 def parse(line: str, tree: dict = TREE) -> list[str]:
     """Expand IOS abbreviations along the command tree. Raises ParseError(invalid / ambiguous / incomplete)."""
-    toks = line.split()
-    node, out, col = tree, [], 0
-    for k, tok in enumerate(toks):
-        col = line.find(tok, col)
-        low = tok.lower()
-        kws = [w for w in node if w not in (LEAF, ARG)]
-        if low in kws:
-            out.append(low)
-            node = node[low]
-        else:
-            hits = [w for w in kws if w.startswith(low)]
-            if len(hits) == 1:
-                out.append(hits[0])
-                node = node[hits[0]]
-            elif len(hits) > 1:
-                raise ParseError("ambiguous", col)
-            elif ARG in node:
-                out.append(tok)
-                node = node[ARG]
-            else:
-                raise ParseError("invalid", col)
-        col += len(tok)
-    if LEAF not in node:
-        raise ParseError("incomplete", len(line))
-    return out
+    return _parse(line, tree)
 
 
 def help_for(line: str, tree: dict = TREE) -> list[str]:
-    """`?`: the words that can follow (`show ?`) or complete the last one (`sh ip o?`)."""
-    partial = not line.endswith(" ") and line != ""
-    toks = line.split()
-    prefix = toks.pop().lower() if partial and toks else ""
-    node = tree
-    for tok in toks:
-        low = tok.lower()
-        kws = [w for w in node if w not in (LEAF, ARG)]
-        hits = [w for w in kws if w == low] or [w for w in kws if w.startswith(low)]
-        if len(hits) == 1:
-            node = node[hits[0]]
-        elif ARG in node:
-            node = node[ARG]
-        else:
-            return []
-    words = sorted(w for w in node if w not in (LEAF, ARG) and w.startswith(prefix))
-    if not partial:
-        if ARG in node:
-            words.append("WORD")
-        if LEAF in node:
-            words.append("<cr>")
-    return words
+    return _help_for(line, tree)
 
 
 # configuration keywords: abbreviations expand until the first word that is not one (names, addresses, descriptions)
@@ -213,17 +145,6 @@ _CFG_FIRST = re.compile(r"^(no |default )?(hostname|interface|router|ipv6|ip|rou
                         r"logging|banner|crypto|ntp|snmp-server|access-list|key|boot|track|event|alias|archive|clock|cdp|"
                         r"lldp|aaa|privilege|mpls|bfd|bfd-template|control-plane|vrf|multilink|errdisable|"
                         r"spanning-tree|class-map|policy-map|object-group|license|redundancy|file|exception)( |$)")
-_CFG_HELP = """Configure commands:
-  hostname <name>        interface <name>        router ospf <pid>        ipv6 router ospf <pid>
-  ip route ...           ip sla <n>              route-map <name> ...     username / enable secret
-  line vty 0 4           do <exec command>       end (or Ctrl-Z)          exit
-Interface: ip address, ip ospf <pid> area <a>, ip ospf hello-interval / dead-interval / cost / priority / network,
-  ip mtu, ipv6 address, ipv6 ospf <pid> area <a> [instance n], description, shutdown / no shutdown
-Router ospf: router-id, area <a> stub|nssa [no-summary], area <a> nssa translate type7 always,
-  redistribute static|connected [metric n] [metric-type 1|2] [subnets], auto-cost reference-bandwidth, passive-interface
-"""
-
-
 def _expand_cfg(line: str) -> str:
     toks = line.split()
     out = []
@@ -335,6 +256,7 @@ class _Shell:
         self.since = time.time()
         self.vty = 0
         self.length, self.width = 24, 80
+        self._asking = False                          # a question (Password:, [confirm]) is being answered
 
     @property
     def host(self) -> str:
@@ -362,13 +284,68 @@ class _Shell:
         else:
             self.out(" " * (len(self.prompt()) + pos) + "^\n% Invalid input detected at '^' marker.\n\n")
 
+    # -- command trees, Tab and ? ----------------------------------------------------------------------------------------
+    def tree(self) -> dict:
+        return TREE if self.mode is None else config_tree(self.mode, TREE)
+
+    def help_text(self, line: str) -> str:
+        """What IOS prints for `line?`."""
+        partial = bool(line.strip()) and not line.endswith(" ")
+        body, bar, pipe = line.partition("|")
+        if bar and self.mode is None:
+            words = ["LINE" if w == "WORD" else w for w in _help_for(pipe.lstrip(), PIPE_TREE)]
+            if not words:
+                return "% Unrecognized command\n"
+            if words[0] == "LINE":
+                return "  LINE  Regular Expression\n"
+            return columns(words) if partial else describe(words)
+        words = _help_for(line, self.tree())
+        if not words:
+            return "% Unrecognized command\n"
+        if not partial and self.mode is None and "<cr>" in words and line.split()[0].lower().startswith("sh"):
+            words.insert(words.index("<cr>"), "|")    # a complete show command takes an output modifier
+        if partial:
+            return columns(words)
+        return describe_ctx(words, line, self.tree(), config=self.mode is not None)
+
+    def complete_line(self, line: str) -> str | None:
+        """Tab: the line with its last word completed, or None."""
+        if "|" in line and self.mode is None:
+            idx = line.index("|")
+            rest = line[idx + 1:]
+            lead = rest[: len(rest) - len(rest.lstrip())]
+            done = complete(rest.lstrip(), PIPE_TREE)
+            return line[: idx + 1] + (lead or " ") + done if done else None
+        return complete(line, self.tree())
+
+    def key_tab(self, line: str, pos: int):
+        """Tab, as IOS: complete a unique word, otherwise redisplay the line on a new line."""
+        if self._asking or pos != len(line):
+            return False
+        new = self.complete_line(line)
+        if new is None:
+            self.out(f"{line}\n{self.prompt()}")
+            return line, pos
+        return new, len(new)
+
+    def key_help(self, line: str, pos: int):
+        """`?`, as IOS: answered at once, then the prompt comes back with the line as typed."""
+        if self._asking:
+            return True                               # a literal ? in a password
+        text = self.help_text(line[:pos])
+        blank = "" if text.startswith("%") else "\n"
+        self.out(f"{line[:pos]}?\n{text}{blank}{self.prompt()}")
+        return line, pos
+
     async def ask(self, question: str, secret: bool = False) -> str | None:
+        self._asking = True
         self.out(question)
         if secret:
             self.p.channel.set_echo(False)
         try:
             line = await self.p.stdin.readline()
         finally:
+            self._asking = False
             if secret:
                 self.p.channel.set_echo(True)
                 self.out("\n")
@@ -416,8 +393,7 @@ class _Shell:
         if self.mode is not None:
             return await self.config_line(line.strip())
         if line.rstrip().endswith("?"):
-            words = help_for(line.rstrip()[:-1])
-            self.out(_columns(words) if words else "% Unrecognized command\n")
+            self.out(self.help_text(line.rstrip()[:-1]))
             return True
         self.history.append(line.strip())
         body, bar, pipe = line.partition("|")
@@ -548,7 +524,7 @@ class _Shell:
     # -- configuration mode ---------------------------------------------------------------------------------------------
     async def config_line(self, line: str) -> bool:
         if line.endswith("?"):
-            self.out(_CFG_HELP)
+            self.out(self.help_text(line[:-1]))
             return True
         self.history.append(line)
         try:
@@ -558,7 +534,16 @@ class _Shell:
         if as_exec.startswith("show ") or as_exec in ("write", "write memory"):
             line = "do " + line                       # forgiving: `sh ip ospf nei` without `do` (a bare `sh` = shutdown)
         elif not line.lower().startswith("do "):
-            line = _expand_cfg(line)
+            try:
+                line = " ".join(_parse(line, self.tree()))
+            except ParseError as e:
+                if e.kind == "ambiguous":
+                    self.out(f'% Ambiguous command:  "{line}"\n')
+                    return True
+                if e.kind == "incomplete" and not re.match(r"(?i)(no|default)( |$)", line):
+                    self.out("% Incomplete command.\n\n")
+                    return True
+                line = _expand_cfg(line)              # not in the tree: accepted as before (kept in running-config)
         low = line.lower()
         if low == "end":
             self.mode = None
@@ -595,10 +580,6 @@ class _Shell:
         return bool(_GLOBAL.match(low) or _CFG_FIRST.match(low))
 
 
-def _columns(words: list[str]) -> str:
-    return "".join(f"  {w}\n" for w in words)
-
-
 def _hms(sec: float) -> str:
     s = int(sec)
     return f"{s // 3600:02d}:{(s // 60) % 60:02d}:{s % 60:02d}"
@@ -632,6 +613,8 @@ async def _session(process: asyncssh.SSHServerProcess, router: str, login: dict)
     sh = _Shell(process, router, login)
     try:
         process.channel.register_key("\x1a", lambda _line, _pos: ("TSTP", -1))   # Ctrl-Z
+        process.channel.register_key("\t", sh.key_tab)                            # Tab completion
+        process.channel.register_key("?", sh.key_help)                            # ? help, no Enter needed
     except (AssertionError, AttributeError):          # no pty / no line editor (an exec request)
         pass
     sh.register()

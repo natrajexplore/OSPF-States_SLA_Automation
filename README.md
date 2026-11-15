@@ -11,7 +11,7 @@
 ![Prometheus](https://img.shields.io/badge/Prometheus-alerts-E6522C?logo=prometheus&logoColor=white)
 ![Grafana](https://img.shields.io/badge/Grafana-dashboard-F46800?logo=grafana&logoColor=white)
 ![Three.js](https://img.shields.io/badge/Three.js-3D-000000?logo=threedotjs&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-83%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-87%20passing-brightgreen)
 
 A hands-on OSPF platform on **EVE-NG** with real Cisco IOS routers (7206VXR / c7200, Dynamips): pick a scenario, click **Apply**,
 and the platform configures the routers over SSH, waits for OSPF to converge, verifies the result against regex assertions and
@@ -136,7 +136,7 @@ The **PuTTY** tab (`#putty`) has an **Open in PuTTY** button per router after a 
   a baseline reset logs its error and saves its run record; the CLI tab reports an SSH failure as a message instead of an HTTP 500;
   scenario and router names are validated; API answers and the page itself are never cached, so a browser never shows an old build after an update. Scenario 18 declares that it needs 17 (`requires:`), and
   the Lab tab says so.
-* **Tests**: 83 offline tests ([`backend/tests/`](backend/tests/)), including every scenario's apply and rollback against the
+* **Tests**: 87 offline tests ([`backend/tests/`](backend/tests/)), including every scenario's apply and rollback against the
   simulated lab, a check that its assertions fail before Apply, and SSH logins to the simulated routers.
 * **Local Docker with live telemetry**: [`docker-compose.demo-telemetry.yml`](docker-compose.demo-telemetry.yml) connects the
   simulated lab to the monitoring stack, so its adjacency events flow through Kafka, Prometheus and Grafana with no EVE-NG.
@@ -473,7 +473,26 @@ private lab VM and worth remembering before exposing it. Today all 40 are `lab` 
 **Simulation mode** (`docker-compose.demo.yml`): the backend runs an SSH server per simulated router, published on this PC only:
 R1 `127.0.0.1:2201`, R2 `2202`, R3 `2203`, R4 `2204`, PuTTY asks `login as:` (`cisco`) and the password (`lab123`), privilege 15 so the prompt is `R1#` (the automation's `lab` login works too). The shell is an
 IOS CLI on the same model the dashboard drives, parsed like IOS: keywords abbreviate while they stay unique (`sh ip int br`,
-`sh ip pro`, `conf t`, `wr`), with `% Ambiguous command`, `% Incomplete command.`, `% Invalid input` with the `^` marker, and `?` help.
+`sh ip pro`, `conf t`, `wr`), with `% Ambiguous command`, `% Incomplete command.`, `% Invalid input` with the `^` marker.
+
+**Tab and `?` work as on a real router**, in exec and every configuration mode (global, interface, `router ospf`,
+`ipv6 router ospf`, `ip sla`, `route-map`, `line vty`), without pressing Enter:
+
+```
+R2#sh<Tab>                    ->  R2#show
+R2#show ip ospf ne<Tab>       ->  R2#show ip ospf neighbor
+R2(config)#int e<Tab>         ->  R2(config)#int Ethernet          (type 1/0 next)
+R2#sh i<Tab>                  ->  not unique (interfaces, ip, inventory): the line is shown again
+R2#sh ip o?                   ->  ospf
+R2(config-if)#ip ospf ?       ->  authentication ... hello-interval  Time between HELLO packets ... <1-65535>  Process ID
+R2(config-if)#ip ospf 1 area ?    <0-4294967295>  OSPF area ID as a decimal value / A.B.C.D  OSPF area ID in IP address format
+R2#show ip route ?            ->  ... |  Output modifiers / <cr>
+R2#sh ip ospf nei | ?         ->  begin  count  exclude  include  section
+```
+
+`?` answers at once with IOS's descriptions, then gives the prompt back with the line as you typed it; `no` / `default`
+accept any command of the mode without its arguments (`no ip ospf cost`). The command trees are in
+[`backend/app/sim/clitree.py`](backend/app/sim/clitree.py).
 
 | Area | Commands |
 |---|---|
@@ -637,7 +656,7 @@ Scenario 08 (BFD) passes in simulation but does not run on Dynamips c7200 (see [
 ```bash
 cd backend
 pip install -r requirements-dev.txt
-python -m pytest tests -q          # 83 tests, about 8 s, no network
+python -m pytest tests -q          # 87 tests, about 12 s, no network
 ```
 
 [`test_sim_scenarios.py`](backend/tests/test_sim_scenarios.py) applies and rolls back every scenario against the simulated lab and

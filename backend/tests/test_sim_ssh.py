@@ -93,3 +93,27 @@ def test_interactive_config_changes_the_lab(servers):
             proc.stdin.write("exit\r")
             await proc.wait_closed()
     asyncio.run(_with_servers(run))
+
+
+def test_tab_and_question_mark_answer_at_once(servers):
+    async def run():
+        async with _connect(servers) as conn:
+            proc = await conn.create_process(term_type="xterm")
+
+            async def until(text, timeout=5.0):
+                buf = ""
+                while text not in buf:
+                    buf += await asyncio.wait_for(proc.stdout.read(4096), timeout)
+                return buf
+
+            await until("R1#")
+            proc.stdin.write("sh ip ospf ne\t")                       # Tab completes, no Enter
+            assert "neighbor" in await until("neighbor")
+            proc.stdin.write("\r")
+            assert "10.255.0." in await until("R1#")
+            proc.stdin.write("show ip ?")                             # ? answers at once, then reprints the line
+            out = await until("R1#show ip ")
+            assert "ospf" in out and "OSPF information" in out
+            proc.stdin.write("\x15exit\r")                            # Ctrl-U clears the line
+            await proc.wait_closed()
+    asyncio.run(_with_servers(run))
