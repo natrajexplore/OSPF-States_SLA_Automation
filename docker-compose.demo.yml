@@ -15,9 +15,14 @@ services:
     environment:
       OSPF_SIMULATE: "true"
       OSPF_KAFKA_BOOTSTRAP: ""
+      OSPF_SIM_SSH_BIND: 0.0.0.0             # PuTTY login to R1..R4: published below on this PC only
+      OSPF_SIM_SSH_HOSTKEY: /app/sshkey/host_key
+    ports:
+      - "127.0.0.1:2201-2204:2201-2204"      # R1 2201, R2 2202, R3 2203, R4 2204 (PuTTY tab)
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8010"]
     volumes:
       - ./labs:/app/labs:ro                  # Credentials tab lists the standalone labs too
+      - sim-ssh-key:/app/sshkey               # same SSH host key after a rebuild: PuTTY asks to trust it once
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8010/api/health').status==200 else 1)"]
       interval: 15s
@@ -37,3 +42,6 @@ services:
     depends_on:
       ospf-backend:
         condition: service_healthy
+
+volumes:
+  sim-ssh-key:

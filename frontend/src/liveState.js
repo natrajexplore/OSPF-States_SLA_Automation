@@ -35,3 +35,18 @@ export function liveState(graph, monitor, devices, af = "v4") {
 
 // The PuTTY link that scripts/putty-setup.ps1 registers: opens the saved session "OSPF <lab> <router>".
 export const puttyHref = (lab, router) => `ospfputty:${lab}/${router}`;
+// The saved-session lab of the dashboard's own routers: the simulated SSH servers, or the shared EVE-NG lab.
+export const ownLab = (sim) => (sim ? "sim" : "shared");
+
+// onClick for every PuTTY link. A browser does nothing at all when no program is registered for ospfputty: links, so
+// watch for the page losing focus (PuTTY or the browser's "Open ...?" prompt taking it); if nothing happens within 6 s (time to answer the browser's one-time "Open ...?" prompt),
+// tell the App to show how to install the link (window event "putty-missing").
+export function watchPuttyLaunch() {
+  let opened = false;
+  const onBlur = () => { opened = true; };
+  window.addEventListener("blur", onBlur, { once: true });
+  setTimeout(() => {
+    window.removeEventListener("blur", onBlur);
+    if (!opened && document.hasFocus()) window.dispatchEvent(new Event("putty-missing"));
+  }, 6000);
+}

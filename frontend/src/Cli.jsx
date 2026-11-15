@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, usePoll } from "./api.js";
-import { puttyHref } from "./liveState.js";
+import { ownLab, puttyHref, watchPuttyLaunch } from "./liveState.js";
 
 // Read-only CLI: any whitelisted `show` on one router, through GET /api/devices/{name}/show (the backend refuses anything
 // else). Opened from the Lab tab's "CLI tab" button as #cli/<router>, which also runs `show ip ospf neighbor`.
@@ -77,7 +77,7 @@ export default function Cli({ router: initial, sim }) {
           CLI
           <span className="muted small">{sim ? "read-only `show` commands, answered by the simulated routers" : "read-only `show` commands over SSH, through the backend"}</span>
           <span className="spacer" />
-          {dev && !sim && <a className="btn" href={puttyHref("shared", dev.name)} title="Open this router in its own PuTTY window (one-time scripts\putty-setup.ps1)">SSH session (PuTTY)</a>}
+          {dev && <a onClick={watchPuttyLaunch} className="btn" href={puttyHref(ownLab(sim), dev.name)} title="Open this router in its own PuTTY window (one-time setup: PuTTY tab)">SSH session (PuTTY)</a>}
         </h3>
         <div className="chips">
           {names.map((n) => (

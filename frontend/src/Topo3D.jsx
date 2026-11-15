@@ -8,7 +8,7 @@ export default function Topo3D({ graph, state, highlight, trace, onSelect, onRea
   const host = useRef(null);
   const [v, setV] = useState(null);
   const [err, setErr] = useState(null);
-  const [ui, setUi] = useState({ rot: true, names: true, play: true, theme: "dark" });
+  const [ui, setUi] = useState({ rot: true, names: true, play: true, theme: "light" });
   const cb = useRef({});
   cb.current = { onSelect, onHop: trace?.onHop };
 
@@ -20,10 +20,9 @@ export default function Topo3D({ graph, state, highlight, trace, onSelect, onRea
         eng = m.create(host.current, {
           onSelect: (n) => cb.current.onSelect?.(n),
           onRotate: (on) => setUi((u) => ({ ...u, rot: on })),
+          theme: "light",            // the 3D scene is always light, whatever the page theme
         });
         if (!eng) return setErr("The 3D view needs WebGL, which this browser does not offer.");
-        eng._setPreferredTheme = m.setPreferredTheme;
-        setUi((u) => ({ ...u, theme: eng.theme() }));
         setV(eng);
         onReady?.(eng);
       })
@@ -44,12 +43,6 @@ export default function Topo3D({ graph, state, highlight, trace, onSelect, onRea
   }, [v, graph, pathKey, ui.play]);
 
   const tool = (key, fn) => () => { setUi((u) => ({ ...u, [key]: !u[key] })); fn?.(!ui[key]); };
-  const flipTheme = () => {
-    const next = ui.theme === "light" ? "dark" : "light";
-    v._setPreferredTheme(next);
-    v.setTheme(next);
-    setUi((u) => ({ ...u, theme: next }));
-  };
 
   return (
     <div className={`t3d ${ui.theme}`}>
@@ -57,7 +50,6 @@ export default function Topo3D({ graph, state, highlight, trace, onSelect, onRea
         {trace && <button className={ui.play ? "on" : ""} onClick={tool("play")}>{ui.play ? "Pause" : "Play"}</button>}
         <button className={ui.rot ? "on" : ""} onClick={tool("rot", (on) => v?.setAutoRotate(on))}>Rotate</button>
         <button className={ui.names ? "on" : ""} onClick={tool("names", (on) => v?.setLabels(on))}>Names</button>
-        <button onClick={flipTheme} disabled={!v} title="Light or dark 3D scene (the page is unchanged)">{ui.theme === "light" ? "Dark" : "Light"}</button>
         <button onClick={() => v?.resetCamera()} disabled={!v}>Reset view</button>
       </div>
       <div className="t3d-canvas" ref={host} style={{ height }}>

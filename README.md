@@ -7,17 +7,61 @@
 ![Docker](https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white)
 ![EVE-NG](https://img.shields.io/badge/EVE--NG-Community-orange)
 ![Cisco IOS](https://img.shields.io/badge/Cisco%20IOS-c7200%2015.2-1BA0D7?logo=cisco&logoColor=white)
+![Kafka](https://img.shields.io/badge/Kafka-KRaft-231F20?logo=apachekafka&logoColor=white)
+![Prometheus](https://img.shields.io/badge/Prometheus-alerts-E6522C?logo=prometheus&logoColor=white)
+![Grafana](https://img.shields.io/badge/Grafana-dashboard-F46800?logo=grafana&logoColor=white)
+![Three.js](https://img.shields.io/badge/Three.js-3D-000000?logo=threedotjs&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-59%20passing-brightgreen)
 
 A hands-on OSPF platform on **EVE-NG** with real Cisco IOS routers (7206VXR / c7200, Dynamips): pick a scenario, click **Apply**,
 and the platform configures the routers over SSH, waits for OSPF to converge, verifies the result against regex assertions and
 shows a before/after diff, while a live telemetry pipeline (Kafka, Prometheus, Grafana) records every adjacency change.
 
+**No lab? No problem.** A built-in simulation mode models the four routers from their real configurations, so the whole platform
+(scenarios, 3D view, telemetry, even a PuTTY login to each router) runs on any PC with Docker in about two minutes.
+
+### Highlights
+
+* **18 automated OSPF scenarios**: each concept (adjacency, DR/BDR, areas, stub, NSSA, externals, cost, fast convergence, OSPFv3)
+  next to the production failure that goes with it, each with apply, verify, rollback and a before/after diff.
+* **Live 3D topology**: adjacencies turn green, amber or red as they happen, and every configuration line is drawn as a beam
+  from the automation engine to the router.
+* **Closed-loop telemetry**: poller → Kafka → Prometheus exporter → Grafana dashboard and 7 alert rules, fed by the real lab or
+  by the simulator.
+* **Log in like an engineer**: PuTTY / SSH to every router. On the real lab this goes through the EVE-NG VM; in simulation, R1-R4
+  answer on `127.0.0.1:2201-2204` with an IOS-style CLI, and your changes appear in the 3D view and Grafana.
+* **Built for real routers**: a hostname guard before any change, connection retries, `% Invalid input` detection, and
+  per-router locking so concurrent runs never collide.
+* **Learn tab**: a 9-topic OSPF course at Beginner, Pro and Expert level, with quizzes, 3D packet flows and parameter tables.
+* **9 standalone labs**: EVE-NG topology, ready-to-paste configurations and scenarios for each topic.
+
+### Contents
+
+[Try it in 2 minutes](#try-it-in-2-minutes-no-eve-ng-no-routers) ·
+[What's new](#whats-new) ·
+[Start here](#start-here) ·
+[Architecture](#architecture) ·
+[The lab](#the-lab) ·
+[Scenarios](#scenarios) ·
+[Standalone labs](#the-9-standalone-labs) ·
+[Quick start (real lab)](#quick-start) ·
+[Dashboard](#the-dashboard) ·
+[PuTTY](#one-putty-window-per-router) ·
+[HTTP API](#http-api) ·
+[Monitoring](#monitoring-kafka--prometheus--grafana) ·
+[Ports](#ports) ·
+[Simulation mode](#simulation-mode) ·
+[Tests](#tests) ·
+[Troubleshooting](#troubleshooting) ·
+[Roadmap](#roadmap) ·
+[Repo layout](#repo-layout)
+
 | Part | What it is | Where |
 |---|---|---|
-| **Dashboard** | React UI: live OSPF monitor, 18 scenarios with Apply / Rollback and streamed logs, the Lab tab, Learn, Kafka and Prometheus tabs | `http://<eve-vm>:8082` |
-| **Lab tab (3D)** | The lab in 3D with live OSPFv2 or OSPFv3 adjacency colours; Apply / Rollback animates every SSH session (a beam per configuration line) next to the SSH / CLI transcript with the real IOS prompts | `#lab`, [details](#the-lab-tab-cli-credentials-and-putty) |
+| **Dashboard** | React UI: live OSPF monitor, 18 scenarios with Apply / Rollback and streamed logs, the Lab tab, Learn, Kafka and Prometheus tabs | `http://localhost:8082` (simulation) or `http://<eve-vm>:8082` |
+| **Lab tab (3D)** | The lab in 3D with live OSPFv2 or OSPFv3 adjacency colours; Apply / Rollback animates every SSH session (a beam per configuration line) next to the SSH / CLI transcript with the real IOS prompts | `#lab`, [details](#the-lab-tab-cli-credentials-and-putty-tabs) |
 | **CLI and Credentials tabs** | Any whitelisted `show` on any router with a kept transcript; every router's login, password and enable secret (hidden until Reveal) for all 9 labs | `#cli`, `#credentials` |
-| **PuTTY sessions** | One click on **SSH session** opens a router in its own PuTTY window, through the EVE VM (one-time `scripts\putty-setup.ps1`) | [PuTTY](#one-putty-window-per-router) |
+| **PuTTY tab** | Log in to every router with PuTTY: in simulation mode R1-R4 are real SSH servers on `127.0.0.1:2201-2204` with an IOS CLI, on the real lab through the EVE VM (one-time `scripts\putty-setup.ps1`) | `#putty`, [PuTTY](#one-putty-window-per-router) |
 | **18 scenarios** | 8 OSPF concepts (01-08) and, for each, the production failure that belongs to it (09-16), plus OSPFv3 for IPv6 (17-18), as YAML + Jinja2 with apply and rollback | [`backend/scenarios/`](backend/scenarios/), [`backend/templates/`](backend/templates/) |
 | **9 standalone labs** | One folder per topic with a README, every router's configuration ready to paste, an EVE topology (`.unl` and `.zip`) and its two scenarios, driven by `labtool.sh` | [`labs/`](labs/) |
 | **Learn tab** | A course on 9 OSPF topics (OSPFv3 included) at three levels (Beginner, Pro, Expert), each level unlocked by a short quiz; every topic has a 3D packet flow through the lab and a table of its OSPF parameters | `http://<eve-vm>:8082/#learn` |
@@ -49,8 +93,29 @@ backend from their real baseline configurations, so every Apply, Rollback, verif
 works end to end. Click **▶ Demo tour** on the Lab tab for a guided, captioned run through the main scenarios.
 [How the simulation works](#simulation-mode).
 
+**Log in to a simulated router with PuTTY** (Docker demo): host `127.0.0.1`, port `2201` (R1) to `2204` (R4), PuTTY asks `login as:` → `cisco`, password
+`lab123`, or from a terminal `ssh -p 2203 cisco@127.0.0.1`. Then try:
+
+```
+R3# show ip ospf neighbor
+R3# conf t
+R3(config)# interface e1/1
+R3(config-if)# ip ospf hello-interval 5        ! R3-R4 drops in the 3D view and in Grafana
+R3(config-if)# no ip ospf hello-interval       ! and comes back
+R3(config-if)# end
+```
+
+The **PuTTY** tab (`#putty`) has an **Open in PuTTY** button per router after a one-time
+[`scripts\putty-setup.ps1`](#one-putty-window-per-router).
+
 ## What's new
 
+* **PuTTY login to the simulated routers and a PuTTY tab.** Each simulated router runs an SSH server in the backend
+  ([`backend/app/sim/sshd.py`](backend/app/sim/sshd.py)) with an IOS-style exec and configuration CLI (abbreviations,
+  `| include`, Ctrl-Z, `do`). It changes the same model the dashboard drives. The **PuTTY** tab lists every session with **Open in
+  PuTTY**, copyable `putty.exe` / `ssh` commands and the host-key fingerprint; `putty-setup.ps1` builds its sessions from the new
+  `GET /api/putty` for both simulation and the real lab.
+* **3D view always uses the light scene**, whatever the page theme, so the topology reads the same in a dark-mode recording.
 * **Simulation mode** (`OSPF_SIMULATE=true`). An OSPF model in the backend ([`backend/app/sim/`](backend/app/sim/)) that is driven by
   the same IOS configuration the routers receive and answers `show` commands in IOS format: adjacencies (hello/dead, area, stub
   flags, network type, MTU, OSPFv3 instance ID), non-preemptive DR/BDR election, LSDB, SPF with ECMP, inter-area, E2, NSSA N2 with
@@ -70,8 +135,8 @@ works end to end. Click **▶ Demo tour** on the Lab tab for a guided, captioned
   a baseline reset logs its error and saves its run record; the CLI tab reports an SSH failure as a message instead of an HTTP 500;
   scenario and router names are validated; API answers and the page itself are never cached, so a browser never shows an old build after an update. Scenario 18 declares that it needs 17 (`requires:`), and
   the Lab tab says so.
-* **Tests**: 56 offline tests ([`backend/tests/`](backend/tests/)), including every scenario's apply and rollback against the
-  simulated lab and a check that its assertions fail before Apply.
+* **Tests**: 59 offline tests ([`backend/tests/`](backend/tests/)), including every scenario's apply and rollback against the
+  simulated lab, a check that its assertions fail before Apply, and SSH logins to the simulated routers.
 * **Local Docker with live telemetry**: [`docker-compose.demo-telemetry.yml`](docker-compose.demo-telemetry.yml) connects the
   simulated lab to the monitoring stack, so its adjacency events flow through Kafka, Prometheus and Grafana with no EVE-NG.
 
@@ -82,7 +147,9 @@ works end to end. Click **▶ Demo tour** on the Lab tab for a guided, captioned
 | I want to... | Go to |
 |---|---|
 | **Run a scenario** and watch OSPF react | the dashboard's **Lab** tab (3D + SSH transcript) or **Scenarios** tab, after the [Quick start](#quick-start) |
-| **Open a router in its own PuTTY window** | **SSH session** on the Lab, CLI or Credentials tabs, after a one-time [PuTTY setup](#one-putty-window-per-router) |
+| **Try everything without a lab** | [Try it in 2 minutes](#try-it-in-2-minutes-no-eve-ng-no-routers) (simulation mode, Docker) |
+| **Open a router in its own PuTTY window** | the **PuTTY** tab, or **SSH session** on the Lab, CLI or Credentials tabs, after a one-time [PuTTY setup](#one-putty-window-per-router) |
+| **Record a demo video** | **▶ Demo tour** on the Lab tab, and the script in [`docs/showcase.md`](docs/showcase.md) |
 | **Look up a router's login and enable secret** | the **Credentials** tab |
 | **Read a router without PuTTY** | the **CLI** tab (`#cli/R3` opens R3 and runs `show ip ospf neighbor`) |
 | **Learn** OSPF from the basics to production pitfalls | the dashboard's **Learn** tab: [Learn tab](#the-learn-tab) |
@@ -103,6 +170,22 @@ Browser ──> nginx :8082 (ospf-sla-ui) ──/api, SSE──> FastAPI :8010 (
                                                     ├─ scenario engine        Jinja2 render ─> push ─> settle ─> verify ─> diff
                                                     └─ poller (20 s) ──> Kafka :9094 ──> exporter :9108 ──> Prometheus :9090 ──> Grafana :3000
      both containers run on the EVE-NG VM (network_mode: host)            the monitoring stack runs on Docker Desktop (Windows)
+```
+
+**Simulation mode (one PC, local Docker):**
+
+```mermaid
+flowchart LR
+  subgraph BE[ospf-demo-backend container]
+    API[FastAPI :8010] --> ENG[scenario engine<br/>render, push, settle, verify, diff]
+    ENG --> SIM[(simulated lab<br/>R1-R4 OSPF model)]
+    SSH[SSH servers<br/>IOS-style CLI] --> SIM
+    MON[poller] --> SIM
+  end
+  B[Browser] -->|:8082| UI[nginx + React<br/>ospf-demo-ui]
+  UI -->|/api, SSE| API
+  P[PuTTY / ssh] -->|127.0.0.1:2201-2204| SSH
+  MON -->|kafka:29092| K[Kafka] --> X[exporter :9108] --> PR[Prometheus :9090] --> G[Grafana :3000]
 ```
 
 * **Backend:** FastAPI, Netmiko, Jinja2. A scenario is a YAML file (targets, variables, `settle_seconds`, optional `post_commands`,
@@ -142,7 +225,7 @@ Four routers, two areas, three links:
 | R4 | internal, area 1 | 10.255.0.4 | 192.168.99.14 |
 
 At baseline R3 is the DR, R2 the BDR, R1 a DROTHER, and R4 reaches R1 over two equal-cost paths (through R3 and through R2).
-Router login: user `lab`, password and enable secret `lab123` (set in [`backend/inventory.yaml`](backend/inventory.yaml) and `.env`).
+Router logins: `cisco` / `lab123` for people (PuTTY), and `lab` / `lab123` for the automation (set in [`backend/inventory.yaml`](backend/inventory.yaml) and `.env`); both have privilege 15, and the enable secret is `lab123`. Every baseline carries both `username` lines.
 Full addressing and the first-run checklist: [`docs/lab.md`](docs/lab.md). Configurations: [`backend/baseline/`](backend/baseline/).
 
 ---
@@ -289,6 +372,9 @@ UI development: `cd frontend && npm install && VITE_API=http://<eve-vm>:8010 npm
 | `OSPF_HOSTNAME_GUARD` (default `true`), `OSPF_CONNECT_RETRIES` (default `2`) | Refuse to configure a router whose prompt is not its inventory name; SSH connection attempts |
 | `OSPF_SIMULATE` (default `false`) | Simulation mode: the in-process router model instead of EVE-NG and SSH |
 | `OSPF_SIM_SETTLE_SCALE` (`0.1`), `OSPF_SIM_CONVERGE` (`4`) | Simulation: scenario `settle_seconds` multiplier, and the seconds an adjacency takes to reach FULL |
+| `OSPF_SIM_SSH` (`true`), `OSPF_SIM_SSH_PORT` (`2201`), `OSPF_SIM_SSH_BIND` (`127.0.0.1`), `OSPF_SIM_SSH_HOST` (`127.0.0.1`), `OSPF_SIM_SSH_HOSTKEY` | Simulation: SSH login to the simulated routers (R1 on the port, R2 on +1, ...), the address it listens on, the address the PuTTY tab shows, and where the host key is kept |
+| `OSPF_MONITOR` (`true`) | Run the poller (monitor, Kafka events) |
+| `OSPF_PUTTY_USER` (`cisco`) | The login the PuTTY tab shows (every baseline has `username cisco privilege 15 secret lab123`) |
 
 `.env` is never committed; start from [`.env.example`](.env.example).
 
@@ -302,6 +388,7 @@ UI development: `cd frontend && npm install && VITE_API=http://<eve-vm>:8010 npm
 | **Monitor** | `#monitor` | Per-router neighbors and states, DR/BDR roles, routes by type, BFD and IP SLA, and a live event feed (SSE) |
 | **Scenarios** | `#scenarios` | Apply / Rollback with a streamed log, PASS / FAIL per check, and before/after diffs |
 | **CLI** | `#cli`, `#cli/R3` | Whitelisted read-only `show` commands on any router, with a per-router transcript |
+| **PuTTY** | `#putty` | Every router's SSH session: address, login, passwords, **Open in PuTTY**, copyable `putty.exe` / `ssh` commands, the one-time setup command and, in simulation, the host-key fingerprint and commands to try |
 | **Credentials** | `#credentials` | Login, password and enable secret of the 40 routers of the 10 labs, checked against their baselines, with **SSH session** buttons |
 | **Learn** | `#learn` | The OSPF course with 3D packet flows and parameter tables, see below |
 | **Kafka** | `#kafka` | The live stream of the three OSPF topics, and a link to Kafka UI |
@@ -325,14 +412,14 @@ Every topic also has a **See it in the lab** section, at every level:
   external metric and type, cost, reference bandwidth, fast hellos, BFD, IP SLA). Paths and tables are in
   [`frontend/src/learnLab.js`](frontend/src/learnLab.js).
 
-### The Lab tab, CLI, Credentials and PuTTY
+### The Lab tab, CLI, Credentials and PuTTY tabs
 
 The **Lab** tab (`#lab`; it replaces the former Lab and Live 3D tabs) draws the shared lab: R1 on top, the ABRs R2 and R3 in the middle, R4 below, the area-0 and area-1 volumes (the
 ABRs sit in both), the broadcast segment as a hub, and the SSH executor (the backend). Colours come from the monitor every 5 s: a link
 end is green when the adjacency is FULL (or 2-WAY between DROTHERs), amber while it forms (INIT, EXSTART…), red when the neighbor is
 lost; a router's ring is red when it stops answering. The **OSPFv2 (IPv4) / OSPFv3 (IPv6)** switch above the view chooses which
-protocol's adjacencies colour the links (OSPFv3 links stay grey until scenario 17 is applied). Orbit, zoom, **Rotate**, **Names**, **Light / Dark** (the 3D scene only, remembered
-in the browser) and **Reset view**. Click a router to filter the transcript to it.
+protocol's adjacencies colour the links (OSPFv3 links stay grey until scenario 17 is applied). Orbit, zoom, **Rotate**, **Names** and **Reset view**; the 3D
+scene always uses its light palette, so it reads the same in the page's dark and light themes. Click a router to filter the transcript to it.
 
 Pick a scenario and click **Apply** or **Rollback**: the target routers glow, each SSH session starts with a pulse, and each
 configuration line travels as a beam from the executor to the router. The **SSH / CLI** panel shows the same session as it is typed:
@@ -366,22 +453,33 @@ private lab VM and worth remembering before exposing it. Today all 40 are `lab` 
 
 ### One PuTTY window per router
 
+**Simulation mode** (`docker-compose.demo.yml`): the backend runs an SSH server per simulated router, published on this PC only:
+R1 `127.0.0.1:2201`, R2 `2202`, R3 `2203`, R4 `2204`, PuTTY asks `login as:` (`cisco`) and the password (`lab123`), privilege 15 so the prompt is `R1#` (the automation's `lab` login works too). The shell is a
+small IOS CLI on the same model the dashboard drives: `show ...` (with abbreviations and `| include`), `configure terminal`, interface
+and `router ospf` commands, `end` / Ctrl-Z, `write memory`, `clear ip ospf process`, `?`. A change typed in PuTTY shows up in the 3D
+view, the monitor and Grafana; **Reset lab to baseline** undoes it. The **PuTTY** tab lists the sessions with **Open in PuTTY**, the
+`putty.exe` and `ssh` commands, and the host-key fingerprint. Without the setup below: `putty.exe -ssh 127.0.0.1 -P 2203`.
+Turn it off with `OSPF_SIM_SSH=false`.
+
 A web page cannot start programs, so **SSH session** uses an `ospfputty:<lab>/<router>` link, which a small handler installed once on
 your PC turns into `putty.exe -load "OSPF <lab> <router>"` (your Windows user only, no administrator rights):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\putty-setup.ps1 -Server http://<eve-vm>:8082    # install
+powershell -ExecutionPolicy Bypass -File scripts\putty-setup.ps1                                  # simulation (localhost:8082)
+powershell -ExecutionPolicy Bypass -File scripts\putty-setup.ps1 -Server http://<eve-vm>:8082    # real lab
 powershell -ExecutionPolicy Bypass -File scripts\putty-setup.ps1 -Server http://<eve-vm>:8082 -DryRun
 powershell -ExecutionPolicy Bypass -File scripts\putty-setup.ps1 -Uninstall
 ```
 
-* It reads the router list from `GET /api/credentials` and creates **40 saved sessions** named `OSPF <lab> <router>` (for example
-  `OSPF shared R3`, `OSPF 06_nssa R4`), user `lab`, and registers the `ospfputty:` link. Run it again when labs are added.
+* It reads the sessions from `GET /api/putty` and saves them in PuTTY as `OSPF <lab> <router>`: `OSPF sim R1..R4` in simulation, or
+  **40 sessions** on the real lab (for example `OSPF shared R3`, `OSPF 06_nssa R4`), and registers the `ospfputty:` link. It replaces the
+  earlier OSPF sessions, so run it again when you switch between simulation and the real lab, or when labs are added.
+* The rest of this list is about the real lab.
 * The management addresses 192.168.99.11-14 exist only inside the EVE VM, so each session goes **through the VM** with the Windows
   OpenSSH client (`ssh.exe -W %host:%port root@<eve-vm>`; change the user with `-JumpUser`). You need key login from your PC to the VM.
 * The sessions offer only what the routers' IOS 15.2 SSH server supports (DH group14/group1, AES/3DES, RSA host keys). A 32-bit PuTTY
   starts the 64-bit `ssh.exe` through `C:\Windows\Sysnative`.
-* **The password is never stored.** PuTTY asks for it (Credentials tab), then type `enable` and the enable secret.
+* **No password or username is stored.** PuTTY asks `login as:` (`cisco`) and the password (PuTTY tab); in simulation the setup also trusts the routers' host key, so no security alert appears. On the real lab, routers get the `cisco` user from their baseline (`push_baseline.py`).
 * The first click makes the browser ask once to allow `ospfputty:` links. The first connection to a router shows PuTTY's host-key alert:
   click **Accept** (a router rebuilt from scratch has a new key, so the alert comes back).
 * All labs share the same addresses, so a session reaches whichever lab is running; the lab id in the name and window title is a label.
@@ -407,11 +505,12 @@ curl -X POST http://<eve-vm>:8010/api/scenarios/06_nssa/run
 | `GET /api/devices`, `GET /api/topology` | Routers with their EVE-NG state and console ports; the topology |
 | `GET /api/graph` | Routers (tier, router ID, SSH address) and links (area, members) of the shared lab, for the 3D views |
 | `GET /api/credentials` | Login, password and enable secret of every router of every lab, and whether each matches its baseline |
+| `GET /api/putty` | One SSH session per router for the PuTTY tab and `putty-setup.ps1`: host, port, login, jump host (real lab) and the simulated routers' host-key fingerprint |
 | `GET /api/devices/{name}/show?cmd=...` | A whitelisted read-only command (`show ip ospf ...`, `show ip route ...`, `show ip sla statistics`, `show bfd neighbors`) |
 | `GET /api/monitor/state`, `GET /api/events/recent`, `GET /api/events/stream` | Monitor snapshot and the event feed |
 | `GET /api/kafka/recent`, `GET /api/kafka/stream` | Recent and live Kafka messages |
 | `GET /api/prometheus/query` | A Prometheus query, proxied for the Prometheus tab |
-| `GET /api/health`, `GET /api/config` | Health check; the links configured in `.env` |
+| `GET /api/health`, `GET /api/config` | Health check; the links configured in `.env`, simulation on or off, the poll interval |
 
 ---
 
@@ -445,6 +544,22 @@ watch the R3-R4 adjacency drop in the neighbor state timeline, the event in the 
 
 ---
 
+## Ports
+
+| Port | Service | Where |
+|---|---|---|
+| 8082 | Dashboard (nginx, React) | EVE VM, or localhost in simulation |
+| 8010 | Backend API (FastAPI) | EVE VM, or inside the demo network |
+| 2201-2204 | SSH to simulated R1-R4 (PuTTY) | `127.0.0.1` only, simulation |
+| 9094 | Kafka (external listener); `kafka:29092` inside Docker | Docker Desktop |
+| 9108 | Kafka → Prometheus exporter | Docker Desktop |
+| 9090 | Prometheus | Docker Desktop |
+| 3000 | Grafana | Docker Desktop |
+| 8080 | Kafka UI | Docker Desktop |
+| 5173 | Vite dev server (`scripts/demo.ps1`, `npm run dev`) | localhost |
+
+---
+
 ## Status
 
 Run end-to-end against real EVE-NG / Dynamips routers and a live Kafka / Grafana stack: lab import, `bootstrap.py`,
@@ -459,6 +574,11 @@ Learn render with the real adjacency states; a rollback of scenario 01 run throu
 the expected SSH transcript; the CLI endpoint reads the routers; `putty-setup.ps1` created the 36 sessions, the `ospfputty:` link
 opens the right PuTTY window, and the jump path through the VM reaches the routers' SSH server (`SSH-1.99-Cisco-1.25`).
 Not yet exercised: clicking **Apply** in the Live tab in an interactive browser session, and a full PuTTY login (the password step).
+
+**Simulation and local Docker** (2026-11-15): all 36 apply / rollback runs pass through the API with live timing; Prometheus
+`ospf_neighbor_full` goes 10 → 8 → 10 on scenario 01 apply and rollback, with the events in Kafka; PuTTY's `plink` logs in to all
+four simulated routers in the containers (10 FULL adjacencies), a wrong password is refused, and an interactive session configures
+a router and leaves configuration mode with Ctrl-Z.
 
 ---
 
@@ -475,6 +595,7 @@ whitelisted commands.
 | OSPF | [`sim/ospf.py`](backend/app/sim/ospf.py) | Adjacency per link pair (area, hello/dead incl. `dead-interval minimal`, stub/NSSA flag, network type, MTU, subnet, OSPFv3 instance ID), DR/BDR election (non-preemptive; `clear ip ospf process` re-elects), router/network/summary/type-5/type-7 LSAs, Dijkstra with ECMP, inter-area via ABRs, stub default, E2 and N2 with type-7 translation (`translate type7 always` or highest router ID), BFD |
 | `show` output | [`sim/render.py`](backend/app/sim/render.py) | IOS-format `show ip ospf neighbor / interface [brief] / database / border-routers`, `show ip route [ospf / <addr>]`, `show ipv6 ospf neighbor`, `show ipv6 route ospf`, `show bfd neighbors`, `show ip sla statistics`, `show running-config \| section router ospf`, and more |
 | Wiring | [`sim/driver.py`](backend/app/sim/driver.py), [`devices.py`](backend/app/devices.py) | One shared, thread-safe lab; a stand-in EVE-NG client (all nodes running) |
+| SSH login | [`sim/sshd.py`](backend/app/sim/sshd.py) | One SSH server per router (asyncssh): inventory login, privilege 15, IOS-style exec and configuration modes, abbreviations, `\| include / exclude / begin`, `do`, Ctrl-Z, `clear ip ospf process` |
 
 Timers are compressed: a scenario waits `settle_seconds × OSPF_SIM_SETTLE_SCALE` (at least the convergence time), and a new
 adjacency walks INIT → EXSTART → EXCHANGE → LOADING → FULL over `OSPF_SIM_CONVERGE` seconds, so the 3D view and the event feed
@@ -487,14 +608,15 @@ Scenario 08 (BFD) passes in simulation but does not run on Dynamips c7200 (see [
 ```bash
 cd backend
 pip install -r requirements-dev.txt
-python -m pytest tests -q          # 56 tests, about 6 s, no network
+python -m pytest tests -q          # 59 tests, about 11 s, no network
 ```
 
 [`test_sim_scenarios.py`](backend/tests/test_sim_scenarios.py) applies and rolls back every scenario against the simulated lab and
 checks its `verify` / `rollback_verify` assertions, plus that the apply assertions fail on the untouched baseline (so a scenario cannot
 pass by doing nothing). [`test_api.py`](backend/tests/test_api.py) drives the HTTP API (a full apply and rollback run, the CLI
 whitelist, input validation, credentials); [`test_units.py`](backend/tests/test_units.py) covers the hostname guard, the retry helper,
-IOS error detection, the monitor parsers and IOS mode handling; [`test_sim_timing.py`](backend/tests/test_sim_timing.py) checks that adjacencies re-form within each scenario's settle time. Run them, and `npm run build` in `frontend/`, before
+IOS error detection, the monitor parsers and IOS mode handling; [`test_sim_timing.py`](backend/tests/test_sim_timing.py) checks that adjacencies re-form within each scenario's settle time; [`test_sim_ssh.py`](backend/tests/test_sim_ssh.py) logs in
+to the simulated routers over SSH (a command, a refused password, an interactive configuration change). Run them, and `npm run build` in `frontend/`, before
 deploying a change.
 
 ## Troubleshooting
@@ -509,6 +631,20 @@ deploying a change.
 | Routers table empty, EVE-NG state `unknown` | `OSPF_EVENG_URL` / `OSPF_LAB_PATH` in `.env` are wrong, or the lab is not started |
 | Grafana / Prometheus / Kafka UI buttons missing | Set `OSPF_GRAFANA_URL`, `OSPF_PROMETHEUS_URL`, `OSPF_KAFKA_UI_URL` in `.env` |
 | A page looks out of date after an update | Press Ctrl+Shift+R once |
+| PuTTY: `Connection refused` on 127.0.0.1:2201-2204 | The demo backend is not running, or was started without the port mapping: `docker compose -f docker-compose.demo.yml up -d`, then `docker ps` should show `127.0.0.1:2201-2204->2201-2204/tcp` |
+| PuTTY: `Access denied` | Use the login on the PuTTY tab (`cisco` / `lab123`; the automation's `lab` / `lab123` also works) |
+| **Open in PuTTY** does nothing, or "There is no PuTTY session ..." | Run `scripts\putty-setup.ps1` once (again after switching between simulation and the real lab) |
+| PuTTY host-key alert after a rebuild | Expected if the `sim-ssh-key` volume was removed; compare with the fingerprint on the PuTTY tab and click **Accept** |
+| Real lab: PuTTY closes at once | The EVE VM is not reachable or does not accept key login from this PC; test `ssh root@<eve-vm>` first |
+
+## Roadmap
+
+* **More OSPF**: totally stubby areas, summarisation, virtual links, authentication, OSPFv3 stub / NSSA.
+* **Multivendor**: the scenario engine is template-driven (Jinja2 + regex verification over Netmiko), so a vendor is a set of
+  templates, `show` parsers and a Netmiko device type. Juniper Junos, Arista EOS and Nokia SR Linux / FRR are the natural next
+  targets; today the routers, templates and simulator are Cisco IOS.
+* **OSPFv3 telemetry**: publish OSPFv3 neighbor events and metrics like OSPFv2.
+* **Standalone labs on EVE-NG**: run each `.unl` through `labtool.sh` end to end.
 
 ## Repo layout
 
@@ -516,14 +652,15 @@ deploying a change.
 backend/
   app/              FastAPI application: scenario engine, devices (Netmiko), EVE-NG client, monitor, Kafka bus, validation,
                     labinfo (3D graph and the credentials of every lab; labs/ is mounted read-only at /app/labs)
-  app/sim/          simulation mode: IOS configuration model, OSPF model, IOS-format show output, driver
+  app/sim/          simulation mode: IOS configuration model, OSPF model, IOS-format show output, driver,
+                    sshd.py (SSH login to the simulated routers)
   tests/            offline pytest suite (simulation mode)
   scenarios/        YAML: title, targets, vars, settle_seconds, post_commands, verify / rollback_verify
   templates/        Jinja2, one per scenario (apply + {% if rollback %}, branching on target where routers differ)
   baseline/         full per-router IOS configurations of the shared lab
   scripts/          build_lab.py, bootstrap.py, push_baseline.py, run_scenario.py, healthcheck.py
   inventory.yaml    devices, management IPs, router IDs, links, EVE node settings, template variables
-frontend/           React UI served by nginx: Monitor, Lab (3D), Scenarios, CLI, Credentials, Learn, Kafka, Prometheus
+frontend/           React UI served by nginx: Lab (3D), Monitor, Scenarios, CLI, PuTTY, Learn, Credentials, Kafka, Prometheus
   src/topo3d.js     the Three.js scene (loaded on demand); Topo3D.jsx wraps it; liveState.js turns the monitor into colours
   src/learnLab.js   Learn tab: 3D packet flows and parameter tables per topic
 labs/
@@ -536,6 +673,10 @@ scripts/
   putty-setup.ps1       one PuTTY session per router + the ospfputty: link (Windows, current user); putty-launch.ps1 opens one
 docs/lab.md         addressing, EVE-NG setup, first-run checklist, production scenarios, adding a scenario
 monitoring/         Kafka exporter, Prometheus configuration and alerts, Grafana dashboard and provisioning
+docker-compose.yml                  backend + UI on the EVE-NG VM (real lab)
+docker-compose.monitoring.yml       Kafka, exporter, Prometheus, Grafana, Kafka UI
+docker-compose.demo.yml             simulation: backend (+ SSH 2201-2204) and UI on localhost:8082
+docker-compose.demo-telemetry.yml   add-on: connect the simulation to the monitoring stack
 ```
 
 ## More documentation

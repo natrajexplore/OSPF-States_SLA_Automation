@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { usePoll } from "./api.js";
-import { puttyHref } from "./liveState.js";
+import { puttyHref, watchPuttyLaunch } from "./liveState.js";
 
 // Every router of the shared lab and of the standalone labs: SSH address, login, password and enable secret (hidden until
 // Reveal), each checked against the router's baseline file. Values come from GET /api/credentials. Leaving the tab hides them.
@@ -76,7 +76,9 @@ export default function Credentials({ sim }) {
                         {r.baseline_match === false && <span className="badge bad">baseline differs</span>}
                         {r.baseline_match == null && <span className="badge muted">no baseline</span>}
                       </td>
-                      <td>{sim ? <span className="muted small" title="Simulation mode: there is no router to SSH to">simulated</span> : <a className="btn" href={puttyHref(lab.id, r.name)}>SSH session</a>}</td>
+                      <td>{sim && lab.id !== "shared"
+                        ? <span className="muted small" title="Simulation mode models the shared lab only">not simulated</span>
+                        : <a onClick={watchPuttyLaunch} className="btn" href={puttyHref(sim ? "sim" : lab.id, r.name)}>SSH session</a>}</td>
                     </tr>
                   );
                 })}

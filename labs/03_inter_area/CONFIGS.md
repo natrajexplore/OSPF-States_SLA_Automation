@@ -45,6 +45,7 @@ ip vrf MGMT
 !
 enable secret lab123
 username lab privilege 15 secret lab123
+username cisco privilege 15 secret lab123
 !
 interface Loopback0
  ip address 10.255.0.1 255.255.255.255
@@ -94,6 +95,7 @@ ip vrf MGMT
 !
 enable secret lab123
 username lab privilege 15 secret lab123
+username cisco privilege 15 secret lab123
 !
 interface Loopback0
  ip address 10.255.0.2 255.255.255.255
@@ -153,6 +155,7 @@ ip vrf MGMT
 !
 enable secret lab123
 username lab privilege 15 secret lab123
+username cisco privilege 15 secret lab123
 !
 interface Loopback0
  ip address 10.255.0.3 255.255.255.255
@@ -212,6 +215,7 @@ ip vrf MGMT
 !
 enable secret lab123
 username lab privilege 15 secret lab123
+username cisco privilege 15 secret lab123
 !
 interface Loopback0
  ip address 10.255.0.4 255.255.255.255
