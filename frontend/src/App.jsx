@@ -55,6 +55,12 @@ export default function App() {
     window.addEventListener("hashchange", on);
     return () => window.removeEventListener("hashchange", on);
   }, []);
+  const [puttyMissing, setPuttyMissing] = useState(false);
+  useEffect(() => {
+    const on = () => setPuttyMissing(true);
+    window.addEventListener("putty-missing", on);
+    return () => window.removeEventListener("putty-missing", on);
+  }, []);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     try { localStorage.setItem("ospf-theme", theme); } catch { /* private mode: theme just isn't remembered */ }
@@ -97,6 +103,15 @@ export default function App() {
         </button>
       </header>
       <main>
+        {puttyMissing && (
+          <div className="alert bad putty-missing">
+            <b>PuTTY did not open?</b> This PC does not have the dashboard's PuTTY link yet. Run once, from the repository folder in
+            PowerShell: <code>powershell -ExecutionPolicy Bypass -File scripts\putty-setup.ps1 -Server {location.origin}</code>
+            {" "}then click again (the browser asks once to allow it). Or open the <a href="#putty" onClick={() => setPuttyMissing(false)}>PuTTY tab</a>
+            {" "}for the commands to paste.
+            <button className="secondary small" onClick={() => setPuttyMissing(false)}>Dismiss</button>
+          </div>
+        )}
         {tab === "monitor" && <Monitor />}
         {tab === "scenarios" && <Scenarios focus={scenarioFocus} />}
         {tab === "cli" && <Cli router={arg} key={arg || "cli"} sim={sim} />}

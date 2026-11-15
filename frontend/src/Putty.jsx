@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { usePoll } from "./api.js";
-import { puttyHref } from "./liveState.js";
+import { puttyHref, watchPuttyLaunch } from "./liveState.js";
 
 // PuTTY login to every router. In simulation mode the routers are SSH servers in the backend (127.0.0.1:2201-2204, a small
 // IOS CLI on the same simulated lab the dashboard drives); on the real lab they are the routers' management addresses,
@@ -17,7 +17,7 @@ function Copy({ text, label = "Copy" }) {
 
 const puttyCmd = (s) => s.jump
   ? `putty.exe -load "OSPF ${s.lab} ${s.router}"`
-  : `putty.exe -ssh ${s.username}@${s.host} -P ${s.port}`;
+  : `putty.exe -ssh ${s.host} -P ${s.port}`;       // no user: PuTTY asks "login as:"
 
 const sshCmd = (s, jumpUser = "root") => s.jump
   ? `ssh -J ${jumpUser}@${s.jump} -o KexAlgorithms=+diffie-hellman-group14-sha1 -o HostKeyAlgorithms=+ssh-rsa ${s.username}@${s.host}`
@@ -71,9 +71,10 @@ export default function Putty({ sim }) {
             the PuTTY or ssh command instead.
           </li>
           <li>
-            Log in as <code>{sessions[0]?.username || "lab"}</code> with the password below. The user has privilege 15, so the
-            prompt is <code>R1#</code>; after <code>disable</code>, <code>enable</code> asks for the enable secret.
-            {isSim && data?.fingerprint && <> The first connection asks to trust the host key: <code>{data.fingerprint}</code>.</>}
+            PuTTY asks <code>login as:</code> type <code>{sessions[0]?.username || "cisco"}</code>, then the password
+            (<code>{show ? sessions[0]?.password || "lab123" : "••••••"}</code>). The user has privilege 15, so the prompt is
+            {" "}<code>R1#</code>; after <code>disable</code>, <code>enable</code> asks for the enable secret.
+            {isSim && data?.fingerprint && <> The setup trusts the routers' host key (<code>{data.fingerprint}</code>), so there is no security alert.</>}
           </li>
         </ol>
         {isSim ? (
@@ -104,7 +105,7 @@ export default function Putty({ sim }) {
                   <td><code>{show ? s.password : "••••••"}</code> <Copy text={s.password} /></td>
                   <td><code>{show ? s.secret : "••••••"}</code> <Copy text={s.secret} /></td>
                   <td className="actions">
-                    <a className="btn small" href={puttyHref(s.lab, s.router)} title={`Opens the saved PuTTY session "OSPF ${s.lab} ${s.router}"`}>Open in PuTTY</a>
+                    <a onClick={watchPuttyLaunch} className="btn small" href={puttyHref(s.lab, s.router)} title={`Opens the saved PuTTY session "OSPF ${s.lab} ${s.router}"`}>Open in PuTTY</a>
                     <Copy text={puttyCmd(s)} label="PuTTY cmd" />
                     <Copy text={sshCmd(s)} label="ssh cmd" />
                   </td>

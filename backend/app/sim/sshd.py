@@ -88,16 +88,24 @@ def _filter(text: str, how: str, pattern: str) -> str:
     return "\n".join(lines) + ("\n" if lines else "")
 
 
+_USERS = re.compile(r"^username (\S+)(?: privilege (\d+))? (?:secret|password) (?:\d )?(\S+)", re.M)
+
+
 def logins() -> dict[str, dict]:
-    """Router -> {username, password, secret, privilege, port} for the shared lab (the one the simulator models)."""
+    """Router -> {username, password, secret, port, users} for the shared lab (the one the simulator models).
+    `users` is every `username` line of the router's baseline (name -> (password, privilege)) plus the inventory login,
+    so PuTTY can log in as `cisco` while the automation keeps using `lab`. `username` / `password` are what the PuTTY tab
+    shows: OSPF_PUTTY_USER when the router has that user, otherwise the inventory login."""
     rows = labinfo.credentials()[0]["routers"]
     out = {}
     for k, r in enumerate(rows):
         f = BASELINE_DIR / f"{r['name']}.cfg"
-        m = re.search(rf"^username {re.escape(r['username'])} privilege (\d+)", f.read_text(encoding="utf-8"), re.M) \
-            if f.is_file() else None
-        out[r["name"]] = {"username": r["username"], "password": r["password"], "secret": r["secret"],
-                          "privilege": int(m.group(1)) if m else 1, "port": settings.sim_ssh_port + k}
+        text = f.read_text(encoding="utf-8") if f.is_file() else ""
+        users = {u: (pw, int(pr) if pr else 1) for u, pr, pw in _USERS.findall(text)}
+        users.setdefault(r["username"], (r["password"], 15))
+        shown = settings.putty_user if settings.putty_user in users else r["username"]
+        out[r["name"]] = {"username": shown, "password": users[shown][0], "secret": r["secret"], "users": users,
+                          "port": settings.sim_ssh_port + k}
     return out
 
 
@@ -111,8 +119,11 @@ class _Server(asyncssh.SSHServer):
     def password_auth_supported(self) -> bool:
         return True
 
+    def kbdint_auth_supported(self) -> bool:
+        return False          # plain password auth: PuTTY shows "cisco@127.0.0.1's password:" as with a real router
+
     def validate_password(self, username: str, password: str) -> bool:
-        ok = username == self.login["username"] and password == self.login["password"]
+        ok = username in self.login["users"] and password == self.login["users"][username][0]
         if not ok:
             log.info("%s: failed SSH login for %r", self.router, username)
         return ok
@@ -121,7 +132,8 @@ class _Server(asyncssh.SSHServer):
 class _Shell:
     def __init__(self, process: asyncssh.SSHServerProcess, router: str, login: dict) -> None:
         self.p, self.router, self.login = process, router, login
-        self.enabled = login["privilege"] >= 15
+        user = process.get_extra_info("username") or ""
+        self.enabled = login["users"].get(user, ("", 1))[1] >= 15
         self.mode = None                              # None = exec; otherwise the ConfigSession mode tuple
 
     @property
@@ -263,17 +275,39 @@ async def _session(process: asyncssh.SSHServerProcess, router: str, login: dict)
         process.exit(0)
 
 
+_KEY: asyncssh.SSHKey | None = None
+
+
 def _host_key() -> asyncssh.SSHKey:
+    """An RSA host key, kept on disk so it survives restarts. RSA because putty-setup.ps1 can then store it in PuTTY's
+    trusted keys up front (PuTTY keeps an RSA key as plain exponent,modulus), so no host-key alert interrupts the login."""
+    global _KEY
+    if _KEY is not None:
+        return _KEY
     path = Path(settings.sim_ssh_hostkey)
     if path.is_file():
-        return asyncssh.read_private_key(str(path))
-    key = asyncssh.generate_private_key("ssh-ed25519")
+        try:
+            key = asyncssh.read_private_key(str(path))
+            if key.algorithm == b"ssh-rsa":
+                _KEY = key
+                return key
+        except (OSError, asyncssh.KeyImportError):
+            pass
+    key = asyncssh.generate_private_key("ssh-rsa", key_size=2048)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        key.write_private_key(str(path))              # same key after a restart: PuTTY only asks to trust it once
+        key.write_private_key(str(path))
     except OSError:
         log.warning("could not save the SSH host key to %s; a new one is made on every start", path)
+    _KEY = key
     return key
+
+
+def putty_hostkey() -> str:
+    """The host key in PuTTY's registry format (SshHostKeys value for "rsa2@<port>:<host>"): 0x<e>,0x<n>."""
+    from cryptography.hazmat.primitives.serialization import load_ssh_public_key
+    nums = load_ssh_public_key(_host_key().export_public_key("openssh")).public_numbers()
+    return f"0x{nums.e:x},0x{nums.n:x}"
 
 
 async def start() -> list:

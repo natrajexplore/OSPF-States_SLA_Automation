@@ -29,6 +29,7 @@ param(
 $ErrorActionPreference = "Stop"
 $sessions = "HKCU:\Software\SimonTatham\PuTTY\Sessions"
 $proto = "HKCU:\Software\Classes\ospfputty"
+$hostKeys = "HKCU:\Software\SimonTatham\PuTTY\SshHostKeys"
 
 function Enc([string]$name) { $name -replace ' ', '%20' }      # PuTTY stores the spaces of a session name as %20
 
@@ -45,6 +46,11 @@ function Remove-OspfSessions {
 
 if ($Uninstall) {
     $n = Remove-OspfSessions
+    if (Test-Path $hostKeys) {      # the simulated routers' host keys this script trusted (rsa2@2201:127.0.0.1 ...)
+        (Get-Item $hostKeys).Property | Where-Object { $_ -match '^rsa2@22\d\d:127\.0\.0\.1$' } | ForEach-Object {
+            if (-not $DryRun) { Remove-ItemProperty -LiteralPath $hostKeys -Name $_ }
+        }
+    }
     if (Test-Path $proto) { if (-not $DryRun) { Remove-Item -LiteralPath $proto -Recurse -Force }; Write-Host "removed the ospfputty: link handler" }
     $tail = if ($DryRun) { " (dry run: nothing changed)" } else { "" }
     Write-Host "removed $n PuTTY sessions$tail"
@@ -89,7 +95,8 @@ foreach ($r in $list) {
     if ($DryRun) { Write-Host "  would create '$name' -> $($r.username)@$($r.host):$($r.port)$via"; continue }
     $key = Join-Path $sessions (Enc $name)
     New-Item -Path $key -Force | Out-Null
-    $str = @{ HostName = $r.host; Protocol = "ssh"; UserName = $r.username; WinTitle = "OSPF $($r.lab) $($r.router)  $($r.host):$($r.port)" }
+    # no UserName: PuTTY opens with "login as:" and then asks for the password (both shown on the PuTTY tab)
+    $str = @{ HostName = $r.host; Protocol = "ssh"; WinTitle = "OSPF $($r.lab) $($r.router)  $($r.host):$($r.port)" }
     if ($r.jump) {
         $str.ProxyTelnetCommand = "$sshCmd -W %host:%port $JumpUser@$($r.jump)"
         $str.KEX = "dh-group14-sha1,dh-group1-sha1,WARN"; $str.Cipher = "aes,3des,WARN"; $str.HostKey = "rsa,WARN"   # what IOS 15.2's SSH server offers
@@ -101,6 +108,11 @@ foreach ($r in $list) {
         Set-ItemProperty -LiteralPath $key -Name ProxyLogToTerminal -Value 2 -Type DWord  # show proxy errors until the session starts
     } else {
         Set-ItemProperty -LiteralPath $key -Name ProxyMethod -Value 0 -Type DWord        # direct connection
+        if ($info.putty_hostkey) {
+            # trust the simulated routers' host key up front, so the first login has no security alert
+            if (-not (Test-Path $hostKeys)) { New-Item -Path $hostKeys | Out-Null }     # never -Force: it would wipe the other trusted keys
+            Set-ItemProperty -LiteralPath $hostKeys -Name "rsa2@$($r.port):$($r.host)" -Value $info.putty_hostkey -Type String
+        }
     }
     Set-ItemProperty -LiteralPath $key -Name ScrollbackLines -Value 10000 -Type DWord
 }

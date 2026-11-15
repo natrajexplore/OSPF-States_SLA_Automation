@@ -36,8 +36,8 @@ def servers(monkeypatch, tmp_path):
     yield settings.sim_ssh_port
 
 
-def _connect(port, password="lab123"):
-    return asyncssh.connect("127.0.0.1", port, username="lab", password=password, known_hosts=None,
+def _connect(port, password="lab123", user="cisco"):
+    return asyncssh.connect("127.0.0.1", port, username=user, password=password, known_hosts=None,
                             client_keys=None, preferred_auth="password,keyboard-interactive")
 
 
@@ -53,7 +53,8 @@ async def _with_servers(fn):
 def test_logins_follow_inventory_order(servers):
     lg = sshd.logins()
     assert [lg[r]["port"] for r in ("R1", "R2", "R3", "R4")] == [servers + k for k in range(4)]
-    assert lg["R1"]["username"] == "lab" and lg["R1"]["privilege"] == 15
+    assert lg["R1"]["username"] == "cisco" and lg["R1"]["password"] == "lab123"     # what the PuTTY tab shows
+    assert lg["R1"]["users"]["cisco"] == ("lab123", 15) and lg["R1"]["users"]["lab"] == ("lab123", 15)
 
 
 def test_exec_command_and_bad_password(servers):
@@ -61,6 +62,8 @@ def test_exec_command_and_bad_password(servers):
         async with _connect(servers + 2) as conn:                       # R3
             res = await conn.run("sh ip ospf nei")
             assert "FULL" in res.stdout and "10.255.0.4" in res.stdout
+        async with _connect(servers + 3, user="lab") as conn:          # the automation's login works too
+            assert "R4" in (await conn.run("show version")).stdout
         with pytest.raises(asyncssh.PermissionDenied):
             async with _connect(servers, password="wrong"):
                 pass

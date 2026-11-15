@@ -93,8 +93,8 @@ backend from their real baseline configurations, so every Apply, Rollback, verif
 works end to end. Click **▶ Demo tour** on the Lab tab for a guided, captioned run through the main scenarios.
 [How the simulation works](#simulation-mode).
 
-**Log in to a simulated router with PuTTY** (Docker demo): host `127.0.0.1`, port `2201` (R1) to `2204` (R4), user `lab`, password
-`lab123`, or from a terminal `ssh -p 2203 lab@127.0.0.1`. Then try:
+**Log in to a simulated router with PuTTY** (Docker demo): host `127.0.0.1`, port `2201` (R1) to `2204` (R4), PuTTY asks `login as:` → `cisco`, password
+`lab123`, or from a terminal `ssh -p 2203 cisco@127.0.0.1`. Then try:
 
 ```
 R3# show ip ospf neighbor
@@ -225,7 +225,7 @@ Four routers, two areas, three links:
 | R4 | internal, area 1 | 10.255.0.4 | 192.168.99.14 |
 
 At baseline R3 is the DR, R2 the BDR, R1 a DROTHER, and R4 reaches R1 over two equal-cost paths (through R3 and through R2).
-Router login: user `lab`, password and enable secret `lab123` (set in [`backend/inventory.yaml`](backend/inventory.yaml) and `.env`).
+Router logins: `cisco` / `lab123` for people (PuTTY), and `lab` / `lab123` for the automation (set in [`backend/inventory.yaml`](backend/inventory.yaml) and `.env`); both have privilege 15, and the enable secret is `lab123`. Every baseline carries both `username` lines.
 Full addressing and the first-run checklist: [`docs/lab.md`](docs/lab.md). Configurations: [`backend/baseline/`](backend/baseline/).
 
 ---
@@ -374,6 +374,7 @@ UI development: `cd frontend && npm install && VITE_API=http://<eve-vm>:8010 npm
 | `OSPF_SIM_SETTLE_SCALE` (`0.1`), `OSPF_SIM_CONVERGE` (`4`) | Simulation: scenario `settle_seconds` multiplier, and the seconds an adjacency takes to reach FULL |
 | `OSPF_SIM_SSH` (`true`), `OSPF_SIM_SSH_PORT` (`2201`), `OSPF_SIM_SSH_BIND` (`127.0.0.1`), `OSPF_SIM_SSH_HOST` (`127.0.0.1`), `OSPF_SIM_SSH_HOSTKEY` | Simulation: SSH login to the simulated routers (R1 on the port, R2 on +1, ...), the address it listens on, the address the PuTTY tab shows, and where the host key is kept |
 | `OSPF_MONITOR` (`true`) | Run the poller (monitor, Kafka events) |
+| `OSPF_PUTTY_USER` (`cisco`) | The login the PuTTY tab shows (every baseline has `username cisco privilege 15 secret lab123`) |
 
 `.env` is never committed; start from [`.env.example`](.env.example).
 
@@ -453,11 +454,11 @@ private lab VM and worth remembering before exposing it. Today all 40 are `lab` 
 ### One PuTTY window per router
 
 **Simulation mode** (`docker-compose.demo.yml`): the backend runs an SSH server per simulated router, published on this PC only:
-R1 `127.0.0.1:2201`, R2 `2202`, R3 `2203`, R4 `2204`, login `lab` / `lab123` (privilege 15, so the prompt is `R1#`). The shell is a
+R1 `127.0.0.1:2201`, R2 `2202`, R3 `2203`, R4 `2204`, PuTTY asks `login as:` (`cisco`) and the password (`lab123`), privilege 15 so the prompt is `R1#` (the automation's `lab` login works too). The shell is a
 small IOS CLI on the same model the dashboard drives: `show ...` (with abbreviations and `| include`), `configure terminal`, interface
 and `router ospf` commands, `end` / Ctrl-Z, `write memory`, `clear ip ospf process`, `?`. A change typed in PuTTY shows up in the 3D
 view, the monitor and Grafana; **Reset lab to baseline** undoes it. The **PuTTY** tab lists the sessions with **Open in PuTTY**, the
-`putty.exe` and `ssh` commands, and the host-key fingerprint. Without the setup below: `putty.exe -ssh lab@127.0.0.1 -P 2203`.
+`putty.exe` and `ssh` commands, and the host-key fingerprint. Without the setup below: `putty.exe -ssh 127.0.0.1 -P 2203`.
 Turn it off with `OSPF_SIM_SSH=false`.
 
 A web page cannot start programs, so **SSH session** uses an `ospfputty:<lab>/<router>` link, which a small handler installed once on
@@ -478,7 +479,7 @@ powershell -ExecutionPolicy Bypass -File scripts\putty-setup.ps1 -Uninstall
   OpenSSH client (`ssh.exe -W %host:%port root@<eve-vm>`; change the user with `-JumpUser`). You need key login from your PC to the VM.
 * The sessions offer only what the routers' IOS 15.2 SSH server supports (DH group14/group1, AES/3DES, RSA host keys). A 32-bit PuTTY
   starts the 64-bit `ssh.exe` through `C:\Windows\Sysnative`.
-* **The password is never stored.** PuTTY asks for it (Credentials tab), then type `enable` and the enable secret.
+* **No password or username is stored.** PuTTY asks `login as:` (`cisco`) and the password (PuTTY tab); in simulation the setup also trusts the routers' host key, so no security alert appears. On the real lab, routers get the `cisco` user from their baseline (`push_baseline.py`).
 * The first click makes the browser ask once to allow `ospfputty:` links. The first connection to a router shows PuTTY's host-key alert:
   click **Accept** (a router rebuilt from scratch has a new key, so the alert comes back).
 * All labs share the same addresses, so a session reaches whichever lab is running; the lab id in the name and window title is a label.
@@ -631,7 +632,7 @@ deploying a change.
 | Grafana / Prometheus / Kafka UI buttons missing | Set `OSPF_GRAFANA_URL`, `OSPF_PROMETHEUS_URL`, `OSPF_KAFKA_UI_URL` in `.env` |
 | A page looks out of date after an update | Press Ctrl+Shift+R once |
 | PuTTY: `Connection refused` on 127.0.0.1:2201-2204 | The demo backend is not running, or was started without the port mapping: `docker compose -f docker-compose.demo.yml up -d`, then `docker ps` should show `127.0.0.1:2201-2204->2201-2204/tcp` |
-| PuTTY: `Access denied` | Use the login on the PuTTY tab (`lab` / `lab123` by default) |
+| PuTTY: `Access denied` | Use the login on the PuTTY tab (`cisco` / `lab123`; the automation's `lab` / `lab123` also works) |
 | **Open in PuTTY** does nothing, or "There is no PuTTY session ..." | Run `scripts\putty-setup.ps1` once (again after switching between simulation and the real lab) |
 | PuTTY host-key alert after a rebuild | Expected if the `sim-ssh-key` volume was removed; compare with the fingerprint on the PuTTY tab and click **Accept** |
 | Real lab: PuTTY closes at once | The EVE VM is not reachable or does not accept key login from this PC; test `ssh root@<eve-vm>` first |

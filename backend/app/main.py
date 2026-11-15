@@ -183,12 +183,13 @@ def putty_sessions() -> dict:
                             "username": lg["username"], "password": lg["password"], "secret": lg["secret"],
                             "jump": None, "kex": None})
         return {"mode": "simulation", "enabled": settings.sim_ssh, "sessions": out,
-                "fingerprint": sshd.fingerprint() if settings.sim_ssh else ""}
+                "fingerprint": sshd.fingerprint() if settings.sim_ssh else "",
+                "putty_hostkey": sshd.putty_hostkey() if settings.sim_ssh else ""}
     vm = urlparse(settings.eveng_url).hostname or ""
     for lab in labinfo.credentials():
         for r in lab["routers"]:
             out.append({"lab": lab["id"], "router": r["name"], "host": r["mgmt_ip"], "port": 22,
-                        "username": r["username"], "password": r["password"], "secret": r["secret"],
+                        "username": settings.putty_user, "password": r["password"], "secret": r["secret"],
                         "jump": vm, "kex": "ios15"})
     return {"mode": "eve-ng", "enabled": True, "sessions": out, "fingerprint": ""}
 

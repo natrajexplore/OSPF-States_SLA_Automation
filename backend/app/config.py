@@ -31,6 +31,8 @@ class Settings:
     sim_ssh_port = int(os.getenv("OSPF_SIM_SSH_PORT", "2201"))
     sim_ssh_host = os.getenv("OSPF_SIM_SSH_HOST", "127.0.0.1")           # the address PuTTY connects to, shown in the UI
     sim_ssh_hostkey = os.getenv("OSPF_SIM_SSH_HOSTKEY", str(RUNS_DIR / "sim_ssh_host_key"))
+    # the login the PuTTY tab shows and PuTTY users type (every baseline has `username cisco privilege 15 secret lab123`)
+    putty_user = os.getenv("OSPF_PUTTY_USER", "cisco")
 
     eveng_url = os.getenv("OSPF_EVENG_URL", "http://127.0.0.1")
     eveng_user = os.getenv("OSPF_EVENG_USER", "admin")
