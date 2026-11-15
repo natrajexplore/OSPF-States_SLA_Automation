@@ -11,7 +11,7 @@
 ![Prometheus](https://img.shields.io/badge/Prometheus-alerts-E6522C?logo=prometheus&logoColor=white)
 ![Grafana](https://img.shields.io/badge/Grafana-dashboard-F46800?logo=grafana&logoColor=white)
 ![Three.js](https://img.shields.io/badge/Three.js-3D-000000?logo=threedotjs&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-59%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-83%20passing-brightgreen)
 
 A hands-on OSPF platform on **EVE-NG** with real Cisco IOS routers (7206VXR / c7200, Dynamips): pick a scenario, click **Apply**,
 and the platform configures the routers over SSH, waits for OSPF to converge, verifies the result against regex assertions and
@@ -25,7 +25,7 @@ shows a before/after diff, while a live telemetry pipeline (Kafka, Prometheus, G
 * **18 automated OSPF scenarios**: each concept (adjacency, DR/BDR, areas, stub, NSSA, externals, cost, fast convergence, OSPFv3)
   next to the production failure that goes with it, each with apply, verify, rollback and a before/after diff.
 * **Live 3D topology**: adjacencies turn green, amber or red as they happen, and every configuration line is drawn as a beam
-  from the automation engine to the router.
+  from the automation engine to the router. Light or dark scene with one click.
 * **Closed-loop telemetry**: poller → Kafka → Prometheus exporter → Grafana dashboard and 7 alert rules, fed by the real lab or
   by the simulator.
 * **Log in like an engineer**: PuTTY / SSH to every router. On the real lab this goes through the EVE-NG VM; in simulation, R1-R4
@@ -115,7 +115,8 @@ The **PuTTY** tab (`#putty`) has an **Open in PuTTY** button per router after a 
   `| include`, Ctrl-Z, `do`). It changes the same model the dashboard drives. The **PuTTY** tab lists every session with **Open in
   PuTTY**, copyable `putty.exe` / `ssh` commands and the host-key fingerprint; `putty-setup.ps1` builds its sessions from the new
   `GET /api/putty` for both simulation and the real lab.
-* **3D view always uses the light scene**, whatever the page theme, so the topology reads the same in a dark-mode recording.
+* **3D theme toggle.** A **Dark / Light** button on the 3D toolbar switches the scene's palette (light by default, remembered per
+  browser), independently of the page theme. See [3D toolbar](#the-lab-tab-cli-credentials-and-putty-tabs).
 * **Simulation mode** (`OSPF_SIMULATE=true`). An OSPF model in the backend ([`backend/app/sim/`](backend/app/sim/)) that is driven by
   the same IOS configuration the routers receive and answers `show` commands in IOS format: adjacencies (hello/dead, area, stub
   flags, network type, MTU, OSPFv3 instance ID), non-preemptive DR/BDR election, LSDB, SPF with ECMP, inter-area, E2, NSSA N2 with
@@ -135,7 +136,7 @@ The **PuTTY** tab (`#putty`) has an **Open in PuTTY** button per router after a 
   a baseline reset logs its error and saves its run record; the CLI tab reports an SSH failure as a message instead of an HTTP 500;
   scenario and router names are validated; API answers and the page itself are never cached, so a browser never shows an old build after an update. Scenario 18 declares that it needs 17 (`requires:`), and
   the Lab tab says so.
-* **Tests**: 59 offline tests ([`backend/tests/`](backend/tests/)), including every scenario's apply and rollback against the
+* **Tests**: 83 offline tests ([`backend/tests/`](backend/tests/)), including every scenario's apply and rollback against the
   simulated lab, a check that its assertions fail before Apply, and SSH logins to the simulated routers.
 * **Local Docker with live telemetry**: [`docker-compose.demo-telemetry.yml`](docker-compose.demo-telemetry.yml) connects the
   simulated lab to the monitoring stack, so its adjacency events flow through Kafka, Prometheus and Grafana with no EVE-NG.
@@ -418,8 +419,24 @@ The **Lab** tab (`#lab`; it replaces the former Lab and Live 3D tabs) draws the 
 ABRs sit in both), the broadcast segment as a hub, and the SSH executor (the backend). Colours come from the monitor every 5 s: a link
 end is green when the adjacency is FULL (or 2-WAY between DROTHERs), amber while it forms (INIT, EXSTART…), red when the neighbor is
 lost; a router's ring is red when it stops answering. The **OSPFv2 (IPv4) / OSPFv3 (IPv6)** switch above the view chooses which
-protocol's adjacencies colour the links (OSPFv3 links stay grey until scenario 17 is applied). Orbit, zoom, **Rotate**, **Names** and **Reset view**; the 3D
-scene always uses its light palette, so it reads the same in the page's dark and light themes. Click a router to filter the transcript to it.
+protocol's adjacencies colour the links (OSPFv3 links stay grey until scenario 17 is applied). Click a router to filter the transcript to it.
+
+**3D toolbar** (top right of every 3D view, on the Lab and Learn tabs):
+
+| Button | What it does |
+|---|---|
+| **Play / Pause** | Starts or stops the animated packet (Learn tab packet flows only) |
+| **Rotate** | Slowly turns the scene; dragging the scene stops it |
+| **Names** | Shows or hides the labels (router names, router IDs and roles, area and segment names) |
+| **Reset view** | Puts the camera back to its starting position |
+| **Dark / Light** | Switches the 3D scene between its light palette (the default: pale background, deep blue / teal areas) and its dark palette (navy background, bright blue / teal areas). The button names the theme it switches *to*. |
+
+Mouse: drag to orbit, scroll to zoom, right-drag to pan.
+
+The 3D theme is separate from the page's **Light / Dark** button in the header, so any combination works: a dark page with a
+light scene is easy to read on a projector, an all-dark page suits a dark-mode screen recording. The choice is kept in the
+browser's local storage (key `ospf3dTheme`), so it survives a reload and applies to every 3D view; clear site data or press the button
+again to go back to light. Adjacency colours (green FULL, amber forming, red lost) and the amber scenario highlight are the same in both themes.
 
 Pick a scenario and click **Apply** or **Rollback**: the target routers glow, each SSH session starts with a pulse, and each
 configuration line travels as a beam from the executor to the router. The **SSH / CLI** panel shows the same session as it is typed:
@@ -454,10 +471,22 @@ private lab VM and worth remembering before exposing it. Today all 40 are `lab` 
 ### One PuTTY window per router
 
 **Simulation mode** (`docker-compose.demo.yml`): the backend runs an SSH server per simulated router, published on this PC only:
-R1 `127.0.0.1:2201`, R2 `2202`, R3 `2203`, R4 `2204`, PuTTY asks `login as:` (`cisco`) and the password (`lab123`), privilege 15 so the prompt is `R1#` (the automation's `lab` login works too). The shell is a
-small IOS CLI on the same model the dashboard drives: `show ...` (with abbreviations and `| include`), `configure terminal`, interface
-and `router ospf` commands, `end` / Ctrl-Z, `write memory`, `clear ip ospf process`, `?`. A change typed in PuTTY shows up in the 3D
-view, the monitor and Grafana; **Reset lab to baseline** undoes it. The **PuTTY** tab lists the sessions with **Open in PuTTY**, the
+R1 `127.0.0.1:2201`, R2 `2202`, R3 `2203`, R4 `2204`, PuTTY asks `login as:` (`cisco`) and the password (`lab123`), privilege 15 so the prompt is `R1#` (the automation's `lab` login works too). The shell is an
+IOS CLI on the same model the dashboard drives, parsed like IOS: keywords abbreviate while they stay unique (`sh ip int br`,
+`sh ip pro`, `conf t`, `wr`), with `% Ambiguous command`, `% Incomplete command.`, `% Invalid input` with the `^` marker, and `?` help.
+
+| Area | Commands |
+|---|---|
+| Configuration | `show running-config` (whole config, secrets hashed, `interface X`), `show startup-config` (saved by `write memory` / `copy run start`), `configure terminal` with interface, `router ospf`, `ip sla`, `route-map`, `line`, `username` ... (unknown commands are rejected), `end` / Ctrl-Z, `do` |
+| Interfaces | `show interfaces [X \| description]`, `show ip interface [brief \| X]`, `show ipv6 interface brief`, `show controllers`; all nine c7200 ports (Fa0/0, Et1/0-1/7), unused ones shut down |
+| Routing | `show ip route [ospf \| connected \| static \| summary \| vrf MGMT \| <addr>]`, `show ip protocols`, `show ip cef`, `show ip arp`, `show ip vrf`, `show cdp neighbors [detail]` |
+| OSPF | `show ip ospf [neighbor [X \| detail] \| interface [brief] \| database [... \| database-summary] \| border-routers \| statistics \| traffic \| events \| rib]`, OSPFv3, BFD, `show ip sla statistics / summary / configuration`, `clear ip ospf process` |
+| Reachability | `ping <addr> [repeat n]`, `ping vrf MGMT <addr>`, `traceroute <addr>`: answered from the simulated routing tables, so they fail when a scenario breaks the path |
+| System | `show version`, `show inventory`, `show logging` (`%OSPF-5-ADJCHG`, `%SYS-5-CONFIG_I`), `terminal monitor` (those messages live), `show users`, `show history`, `show terminal`, `show clock`, `show processes cpu`, `show memory`, `show flash:`, `show line` |
+| Filters | `\| include`, `\| exclude`, `\| begin`, `\| section`, `\| count` |
+
+A change typed in PuTTY shows up in the 3D view, the monitor and Grafana; **Reset lab to baseline** undoes it. The dashboard's **CLI**
+tab accepts the same read-only `show` commands (abbreviations and one filter included). The **PuTTY** tab lists the sessions with **Open in PuTTY**, the
 `putty.exe` and `ssh` commands, and the host-key fingerprint. Without the setup below: `putty.exe -ssh 127.0.0.1 -P 2203`.
 Turn it off with `OSPF_SIM_SSH=false`.
 
@@ -599,7 +628,7 @@ whitelisted commands.
 
 Timers are compressed: a scenario waits `settle_seconds × OSPF_SIM_SETTLE_SCALE` (at least the convergence time), and a new
 adjacency walks INIT → EXSTART → EXCHANGE → LOADING → FULL over `OSPF_SIM_CONVERGE` seconds, so the 3D view and the event feed
-show it forming. It is a model, not an IOS emulator: commands outside the scenarios and the CLI whitelist are not understood, and
+show it forming. It is a model, not an IOS emulator: it answers the everyday commands listed under [PuTTY](#one-putty-window-per-router) (configuration it does not model is kept and shown in the running-config but has no effect), and
 on real routers some failures depend on timing the model fixes (for example the broadcast side's 40 s wait timer in scenario 10).
 Scenario 08 (BFD) passes in simulation but does not run on Dynamips c7200 (see [Status](#status)).
 
@@ -608,7 +637,7 @@ Scenario 08 (BFD) passes in simulation but does not run on Dynamips c7200 (see [
 ```bash
 cd backend
 pip install -r requirements-dev.txt
-python -m pytest tests -q          # 59 tests, about 11 s, no network
+python -m pytest tests -q          # 83 tests, about 8 s, no network
 ```
 
 [`test_sim_scenarios.py`](backend/tests/test_sim_scenarios.py) applies and rolls back every scenario against the simulated lab and

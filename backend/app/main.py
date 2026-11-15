@@ -209,6 +209,9 @@ _SHOW_ALLOWED = [re.compile(p) for p in (
     r"show ipv6 route(?: ospf| [0-9a-fA-F:]{2,39}(?:/\d{1,3})?)?",
     r"show ipv6 interface brief",
     r"show running-config \| section ipv6 router ospf",
+    # any other read-only show, abbreviations allowed, with one IOS output filter; no `;`, no show tech-support
+    r"sh(?:o|ow)? (?!tech)[A-Za-z0-9][A-Za-z0-9 ./:_-]{0,80}"
+    r"(?: \| (?:i|in|inc|incl|include|e|ex|exc|exclude|b|be|begin|s|se|sec|section|c|co|count) [A-Za-z0-9 ./:_^$*+?()\[\]-]{0,60})?",
 )]
 
 
@@ -220,7 +223,7 @@ def device_show(name: str, cmd: str) -> dict:
         raise HTTPException(404, name)
     cmd = " ".join(cmd.split())
     if len(cmd) > 120 or not any(p.fullmatch(cmd) for p in _SHOW_ALLOWED):
-        raise HTTPException(400, "command not allowed (read-only OSPF/route show commands only)")
+        raise HTTPException(400, "command not allowed (read-only show commands only; use PuTTY to configure)")
     try:
         output = dev_mod.show(devs[name], cmd)
     except Exception as exc:  # noqa: BLE001 - SSH/console failure: report it instead of a bare 500

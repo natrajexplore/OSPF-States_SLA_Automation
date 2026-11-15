@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, usePoll } from "./api.js";
 import { ownLab, puttyHref, watchPuttyLaunch } from "./liveState.js";
 
-// Read-only CLI: any whitelisted `show` on one router, through GET /api/devices/{name}/show (the backend refuses anything
+// Read-only CLI: any `show` command (abbreviations and one `| include / exclude / begin / section` filter) on one router, through GET /api/devices/{name}/show (the backend refuses anything
 // else). Opened from the Lab tab's "CLI tab" button as #cli/<router>, which also runs `show ip ospf neighbor`.
 const COMMANDS = [
   "show ip ospf neighbor",
@@ -27,6 +27,23 @@ const COMMANDS = [
   "show ipv6 ospf database",
   "show ipv6 ospf",
   "show ipv6 interface brief",
+  // everyday IOS
+  "show running-config",
+  "show ip interface brief",
+  "show interfaces",
+  "show ip protocols",
+  "show ip route",
+  "show ip route summary",
+  "show cdp neighbors",
+  "show ip arp",
+  "show logging",
+  "show version",
+  "show clock",
+  "show users",
+  "show inventory",
+  "show processes cpu",
+  "show running-config | section interface",
+  "show ip interface brief | exclude unassigned",
 ];
 const transcripts = {};                     // router -> [{cmd, out, err, at}], kept while the page is open
 
@@ -93,13 +110,15 @@ export default function Cli({ router: initial, sim }) {
           <button disabled={busy || !router}>{busy ? "Running…" : "Run"}</button>
         </form>
         <div className="chips">
-          {[...COMMANDS.slice(0, 6), "show ipv6 ospf neighbor", "show ipv6 route ospf"].map((c) => (
+          {[...COMMANDS.slice(0, 6), "show ip interface brief", "show running-config", "show ip protocols", "show cdp neighbors",
+            "show logging", "show version", "show ipv6 ospf neighbor"].map((c) => (
             <button key={c} className="secondary small" disabled={busy || !router} onClick={() => { setCmd(c); run(c); }}>{c.replace("show ", "")}</button>
           ))}
         </div>
         <p className="muted small">
-          Allowed: <code>show ip ospf …</code>, <code>show ip route …</code>, <code>show ipv6 ospf …</code>, <code>show ipv6 route …</code>, <code>show ip sla statistics</code>, <code>show bfd neighbors</code>,
-          <code>show running-config | section router ospf</code>. Anything else is refused by the backend. For configuration, use a PuTTY session.
+          Any <code>show</code> command, abbreviated as on IOS (<code>sh ip int br</code>), with one filter
+          (<code>| include</code>, <code>| exclude</code>, <code>| begin</code>, <code>| section</code>). Configuration,
+          <code>ping</code> and <code>traceroute</code>: open a PuTTY session.
           {dev && <> SSH address <code>{dev.mgmt_ip}</code>.</>}
         </p>
       </section>

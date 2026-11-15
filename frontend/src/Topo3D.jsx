@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
+const THEME_KEY = "ospf3dTheme";            // same key as topo3d.js preferredTheme()
+const savedTheme = () => { try { return localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "light"; } catch { return "light"; } };
+
 // React wrapper for topo3d.js (loaded on first use, so Three.js is its own chunk).
 //   graph      GET /api/graph                 state      {nodes, links} for live colours (see topo3d.js)
 //   highlight  routers to mark amber          trace      {path: [...], onHop(i)} an animated packet, or null
@@ -8,7 +11,7 @@ export default function Topo3D({ graph, state, highlight, trace, onSelect, onRea
   const host = useRef(null);
   const [v, setV] = useState(null);
   const [err, setErr] = useState(null);
-  const [ui, setUi] = useState({ rot: true, names: true, play: true, theme: "light" });
+  const [ui, setUi] = useState({ rot: true, names: true, play: true, theme: savedTheme() });
   const cb = useRef({});
   cb.current = { onSelect, onHop: trace?.onHop };
 
@@ -20,7 +23,7 @@ export default function Topo3D({ graph, state, highlight, trace, onSelect, onRea
         eng = m.create(host.current, {
           onSelect: (n) => cb.current.onSelect?.(n),
           onRotate: (on) => setUi((u) => ({ ...u, rot: on })),
-          theme: "light",            // the 3D scene is always light, whatever the page theme
+          theme: savedTheme(),       // light by default; the Dark / Light button switches it
         });
         if (!eng) return setErr("The 3D view needs WebGL, which this browser does not offer.");
         setV(eng);
@@ -44,6 +47,13 @@ export default function Topo3D({ graph, state, highlight, trace, onSelect, onRea
 
   const tool = (key, fn) => () => { setUi((u) => ({ ...u, [key]: !u[key] })); fn?.(!ui[key]); };
 
+  const toggleTheme = () => {
+    const next = ui.theme === "light" ? "dark" : "light";
+    setUi((u) => ({ ...u, theme: next }));
+    v?.setTheme(next);
+    try { localStorage.setItem(THEME_KEY, next); } catch { /* storage blocked: lasts for this view only */ }
+  };
+
   return (
     <div className={`t3d ${ui.theme}`}>
       <div className="t3d-bar">
@@ -51,6 +61,7 @@ export default function Topo3D({ graph, state, highlight, trace, onSelect, onRea
         <button className={ui.rot ? "on" : ""} onClick={tool("rot", (on) => v?.setAutoRotate(on))}>Rotate</button>
         <button className={ui.names ? "on" : ""} onClick={tool("names", (on) => v?.setLabels(on))}>Names</button>
         <button onClick={() => v?.resetCamera()} disabled={!v}>Reset view</button>
+        <button onClick={toggleTheme} disabled={!v} title="Light or dark 3D scene">{ui.theme === "light" ? "Dark" : "Light"}</button>
       </div>
       <div className="t3d-canvas" ref={host} style={{ height }}>
         {err && <div className="t3d-none">{err}</div>}
