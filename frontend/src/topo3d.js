@@ -7,7 +7,7 @@
 //   v.pulse(name)  v.beam(name)  a router being configured; an SSH command travelling from the executor to it
 //   v.tracePath(names, { onHop, loop })   a packet follows the path, pausing at each router; v.stopTrace()
 //   v.setAutoRotate(b)  v.setLabels(b)  v.resetCamera()  v.setTheme("dark"|"light")  v.theme()  v.dispose()
-// The theme changes the 3D scene only; preferredTheme()/setPreferredTheme() remember it in this browser.
+// The Lab view always passes theme "light"; preferredTheme() is only the fallback when no theme is given.
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
