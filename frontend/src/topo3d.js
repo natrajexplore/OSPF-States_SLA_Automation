@@ -7,7 +7,7 @@
 //   v.pulse(name)  v.beam(name)  a router being configured; an SSH command travelling from the executor to it
 //   v.tracePath(names, { onHop, loop })   a packet follows the path, pausing at each router; v.stopTrace()
 //   v.setAutoRotate(b)  v.setLabels(b)  v.resetCamera()  v.setTheme("dark"|"light")  v.theme()  v.dispose()
-// The Lab view always passes theme "light"; preferredTheme() is only the fallback when no theme is given.
+// Topo3D.jsx passes the theme the viewer picked (light by default); preferredTheme() is the fallback.
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
@@ -23,7 +23,7 @@ const KEY = "ospf3dTheme";
 const TIER_Y = [0, 3.4, 6.8];
 
 export function preferredTheme() {
-  try { return localStorage.getItem(KEY) === "light" ? "light" : "dark"; } catch { return "dark"; }
+  try { return localStorage.getItem(KEY) === "dark" ? "dark" : "light"; } catch { return "light"; }
 }
 export function setPreferredTheme(name) {
   try { localStorage.setItem(KEY, name === "light" ? "light" : "dark"); } catch { /* storage blocked: lasts for this view only */ }

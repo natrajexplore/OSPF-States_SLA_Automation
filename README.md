@@ -115,7 +115,7 @@ The **PuTTY** tab (`#putty`) has an **Open in PuTTY** button per router after a 
   `| include`, Ctrl-Z, `do`). It changes the same model the dashboard drives. The **PuTTY** tab lists every session with **Open in
   PuTTY**, copyable `putty.exe` / `ssh` commands and the host-key fingerprint; `putty-setup.ps1` builds its sessions from the new
   `GET /api/putty` for both simulation and the real lab.
-* **3D view always uses the light scene**, whatever the page theme, so the topology reads the same in a dark-mode recording.
+* **3D view: Light or Dark scene**, chosen with the Dark / Light button on the 3D toolbar (light by default, remembered per browser), independent of the page theme.
 * **Simulation mode** (`OSPF_SIMULATE=true`). An OSPF model in the backend ([`backend/app/sim/`](backend/app/sim/)) that is driven by
   the same IOS configuration the routers receive and answers `show` commands in IOS format: adjacencies (hello/dead, area, stub
   flags, network type, MTU, OSPFv3 instance ID), non-preemptive DR/BDR election, LSDB, SPF with ECMP, inter-area, E2, NSSA N2 with
