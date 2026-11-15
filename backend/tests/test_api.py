@@ -63,6 +63,10 @@ def test_cli_whitelist(client):
     assert r.status_code == 200 and "10.255.0.4" in r.json()["output"]
     assert client.get("/api/devices/R3/show", params={"cmd": "configure terminal"}).status_code == 400
     assert client.get("/api/devices/R3/show", params={"cmd": "show ip ospf neighbor ; reload"}).status_code == 400
+    assert client.get("/api/devices/R3/show", params={"cmd": "show tech-support"}).status_code == 400
+    r = client.get("/api/devices/R3/show", params={"cmd": "sh ip int br | inc Ethernet1/0"})
+    assert r.status_code == 200 and "10.0.123.3" in r.json()["output"]
+    assert "hostname R3" in client.get("/api/devices/R3/show", params={"cmd": "show running-config"}).json()["output"]
     assert client.get("/api/devices/R9/show", params={"cmd": "show ip ospf"}).status_code == 404
 
 

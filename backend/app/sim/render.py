@@ -28,6 +28,11 @@ _ROUTE_CODES_V6 = """Codes: C - Connected, L - Local, S - Static, U - Per-user S
 INVALID = "% Invalid input detected at '^' marker.\n"
 
 
+def _more(renderer):
+    from .iosshow import IosShow
+    return IosShow(renderer)
+
+
 def _hms(sec: float) -> str:
     sec = max(0, int(sec))
     if sec >= 86400:
@@ -46,6 +51,7 @@ class Renderer:
     def show(self, r: str, cmd: str) -> str:
         c = " ".join(cmd.split())
         table = [
+            (r"show ip ospf database database-summary", lambda m: _more(self).ospf_db_summary(r)),
             (r"show ip ospf neighbor", lambda m: self.ospf_nbr(r, "v4")),
             (r"show ip ospf neighbor detail", lambda m: self.ospf_nbr_detail(r)),
             (r"show ip ospf interface brief", lambda m: self.ospf_if_brief(r, "v4")),
@@ -76,7 +82,9 @@ class Renderer:
             mt = re.fullmatch(pat, c, re.IGNORECASE)
             if mt:
                 return fn(mt)
-        return INVALID
+        from .iosshow import IosShow
+        more = IosShow(self).show(r, c)
+        return INVALID if more is None else more
 
     # -- neighbors ------------------------------------------------------------------------------------------------
     def _dead(self, r: str, iface: str, af: str) -> str:
@@ -198,7 +206,7 @@ class Renderer:
 
     def v4_if_brief(self, r: str) -> str:
         rows = ["Interface                  IP-Address      OK? Method Status                Protocol"]
-        for i in sorted(self.m.configs[r].ifaces.values(), key=lambda i: i.name):
+        for i in sorted(self.m.configs[r].ifaces.values(), key=_brief_order):
             st = "administratively down" if i.shutdown else "up"
             rows.append(f"{i.name:<26} {i.ip or 'unassigned':<15} YES {'NVRAM' if i.ip else 'unset':<6} {st:<21} {'down' if i.shutdown else 'up'}")
         return "\n".join(rows) + "\n"
@@ -206,7 +214,7 @@ class Renderer:
     def v6_if_brief(self, r: str) -> str:
         cfg = self.m.configs[r]
         rows = []
-        for i in sorted(cfg.ifaces.values(), key=lambda i: i.name):
+        for i in sorted(cfg.ifaces.values(), key=_brief_order):
             rows.append(f"{i.name:<26} [{'administratively down' if i.shutdown else 'up'}/{'down' if i.shutdown else 'up'}]")
             if i.v6_addrs:
                 rows.append(f"    {self.m.link_local(r, i)}")
@@ -514,9 +522,33 @@ class Renderer:
         return "\n".join(out) + "\n"
 
     def version(self, r: str) -> str:
-        return (f"Cisco IOS Software, 7200 Software (C7200-ADVENTERPRISEK9-M), Version 15.2(4)S6 (simulated)\n"
-                f"{r} uptime is {_hms(self.now - self.started)}\n"
-                "cisco 7206VXR (NPE400) processor (revision A) with 245760K/16384K bytes of memory.\n")
+        up = int(self.now - self.started)
+        upt = f"{up // 3600} hours, {(up // 60) % 60} minutes" if up >= 3600 else f"{(up // 60) % 60} minutes"
+        cfg = self.m.configs[r]
+        fe = sum(1 for n in cfg.ifaces if n.startswith("FastEthernet"))
+        eth = sum(1 for n in cfg.ifaces if n.startswith("Ethernet"))
+        return ("Cisco IOS Software, 7200 Software (C7200-ADVENTERPRISEK9-M), Version 15.2(4)S6, RELEASE SOFTWARE (fc1)\n"
+                "Technical Support: http://www.cisco.com/techsupport\n"
+                "Copyright (c) 1986-2014 by Cisco Systems, Inc.\n"
+                "Compiled Fri 08-Aug-14 02:03 by prod_rel_team\n\n"
+                "ROM: ROMMON Emulation Microcode\n"
+                "BOOTLDR: 7200 Software (C7200-ADVENTERPRISEK9-M), Version 15.2(4)S6, RELEASE SOFTWARE (fc1)\n\n"
+                f"{cfg.hostname} uptime is {upt}\n"
+                'System image file is "disk0:c7200-adventerprisek9-mz.152-4.S6"\n'
+                "Last reload reason: Unknown reason\n\n"
+                "Cisco 7206VXR (NPE400) processor (revision A) with 245760K/16384K bytes of memory.\n"
+                f"Processor board ID 42792{sorted(self.m.configs).index(r) + 1:05d}\n"
+                "R7000 CPU at 150MHz, Implementation 39, Rev 2.1, 256KB L2 Cache\n"
+                "6 slot VXR midplane, Version 2.1\n\n"
+                "Last reset from power-on\n\n"
+                "PCI bus mb0_mb1 (Slots 0, 1, 3 and 5) has a capacity of 600 bandwidth points.\n"
+                "Current configuration on bus mb0_mb1 has a total of 400 bandwidth points. \n"
+                "This configuration is within the PCI bus capacity and is supported. \n\n"
+                f"{eth} Ethernet interfaces\n{fe} FastEthernet interface\n"
+                "509K bytes of NVRAM.\n\n"
+                "126976K bytes of ATA PCMCIA card at slot 0 (Sector size 512 bytes).\n"
+                "8192K bytes of Flash internal SIMM (Sector size 256K).\n"
+                "Configuration register is 0x2102\n")
 
 
 def _v6_header(n: int) -> str:
@@ -526,3 +558,8 @@ def _v6_header(n: int) -> str:
 def classful_mask(addr: str) -> int:
     first = int(addr.split(".")[0])
     return 8 if first < 128 else 16 if first < 192 else 24
+
+
+def _brief_order(i) -> tuple:
+    """`show ip interface brief` order on IOS: physical ports by slot/port (Fa0/0, Et1/0 ...), then loopbacks."""
+    return (i.name.startswith("Loopback"), [int(x) for x in re.findall(r"\d+", i.name)], i.name)

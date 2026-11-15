@@ -63,6 +63,7 @@ class Iface:
     v6_instance: int = 0
     v6_net_type: str | None = None
     v6_priority: int = 1
+    extra: list[str] = field(default_factory=list)   # sub-commands the model does not use (duplex auto, speed auto...)
 
     @property
     def loopback(self) -> bool:
@@ -84,6 +85,7 @@ class OspfProc:
     redistribute: dict[str, dict] = field(default_factory=dict)   # static/connected -> {subnets, metric, mtype, route_map}
     ref_bw: int = 100
     log_adj: str | None = None
+    extra: list[str] = field(default_factory=list)   # passive-interface, network ..., default-information ...
 
     def area(self, a: int) -> Area:
         return self.areas.get(a) or Area()
@@ -100,6 +102,9 @@ class RouterConfig:
     route_maps: dict[str, list[dict]] = field(default_factory=dict)                  # name -> [{seq, action, match_ifaces}]
     sla: dict[int, dict] = field(default_factory=dict)
     sla_scheduled: set[int] = field(default_factory=set)
+    sla_schedule_line: dict[int, str] = field(default_factory=dict)
+    misc: list[str] = field(default_factory=list)              # other global lines, in order (enable secret, username...)
+    blocks: dict[str, list[str]] = field(default_factory=dict)  # "ip vrf MGMT" / "line vty 0 4" -> its sub-commands
 
     def iface(self, name: str) -> Iface:
         name = ifname(name)
@@ -127,6 +132,26 @@ _RMAP_SUB = re.compile(r"^(no )?(match |set |description|continue)")
 _SLA_SUB = re.compile(r"^(no )?(icmp-echo |frequency |timeout |threshold |tag |tos |request-data-size |vrf |owner |history )")
 
 
+def _key(line: str) -> str:
+    """What makes two configuration lines the same setting: `username cisco ...`, `ip domain name ...`, `duplex ...`."""
+    w = line.split()
+    if w and w[0] == "no":
+        w = w[1:]
+    n = 3 if w and w[0] in ("ip", "ipv6", "service") else 2
+    if w and w[0] in ("duplex", "speed", "bandwidth", "delay", "mtu", "keepalive", "description"):
+        n = 1
+    return " ".join(w[:n])
+
+
+def _remember(lines: list[str], line: str) -> None:
+    k = _key(line)
+    lines[:] = [x for x in lines if _key(x) != k]
+    lines.append(line)
+
+
+_SKIP_GLOBAL = re.compile(r"^(end|exit|version \S+|boot-start-marker|boot-end-marker|Building configuration.*|Current configuration.*)$")
+
+
 class ConfigSession:
     """Applies configuration lines to a RouterConfig and records the IOS prompts they were typed at."""
 
@@ -141,6 +166,8 @@ class ConfigSession:
         kind = self.mode[0]
         sub = {"global": "config", "if": "config-if", "ospf": "config-router", "ospf6": "config-rtr",
                "rmap": "config-route-map", "sla": "config-ip-sla-echo", "other": "config-line"}[kind]
+        if kind == "other" and len(self.mode) > 1 and not self.mode[1].startswith("line"):
+            sub = {"ip": "config-vrf", "vrf": "config-vrf", "key": "config-keychain"}.get(self.mode[1].split()[0], "config")
         return f"{self.cfg.hostname}({sub})#"
 
     def apply(self, lines: list[str]) -> None:
@@ -158,7 +185,7 @@ class ConfigSession:
             elif self.mode[0] == "sla" and _SLA_SUB.match(s):
                 self._sla(s)
             elif self.mode[0] == "other" and not _GLOBAL.match(s):
-                pass                                              # line vty / ip vrf sub-commands: not modelled
+                _remember(self.cfg.blocks.setdefault(self.mode[1], []), s)   # line vty / ip vrf sub-commands
             else:
                 self._global(s)
 
@@ -211,6 +238,10 @@ class ConfigSession:
                 self.mode = ("rmap", name, seq)
         elif m := re.fullmatch(r"ip sla schedule (\d+).*", body):
             (cfg.sla_scheduled.discard if neg else cfg.sla_scheduled.add)(int(m.group(1)))
+            if neg:
+                cfg.sla_schedule_line.pop(int(m.group(1)), None)
+            else:
+                cfg.sla_schedule_line[int(m.group(1))] = body
         elif m := re.fullmatch(r"ip sla (\d+)", body):
             sid = int(m.group(1))
             if neg:
@@ -220,7 +251,13 @@ class ConfigSession:
                 cfg.sla.setdefault(sid, {"type": None, "target": None, "source": None, "frequency": 60})
                 self.mode = ("sla", sid)
         elif re.match(r"(ip vrf |vrf definition |line |key chain |control-plane)", body):
-            self.mode = ("other",)
+            if neg:
+                cfg.blocks.pop(body, None)
+            else:
+                cfg.blocks.setdefault(body, [])
+                self.mode = ("other", body)
+        elif not _SKIP_GLOBAL.match(body):
+            _remember(cfg.misc, s)                     # enable secret, username, ip domain name, service ...
 
     # -- interface ---------------------------------------------------------------------------------------------
     def _iface(self, i: Iface, s: str) -> None:
@@ -277,6 +314,11 @@ class ConfigSession:
             i.v6_net_type = None if neg else m.group(1)
         elif m := re.fullmatch(r"ipv6 ospf priority(?: (\d+))?", body):
             i.v6_priority = 1 if neg else int(m.group(1))
+        elif not body.startswith(("ip ospf", "ipv6 ospf", "bfd")):
+            if neg:
+                i.extra = [x for x in i.extra if _key(x) != _key(body)]
+            else:
+                _remember(i.extra, body)               # duplex auto, speed auto, cdp enable, bandwidth ...
 
     # -- router ospf / ipv6 router ospf ----------------------------------------------------------------------
     def _ospf(self, p: OspfProc, s: str) -> None:
@@ -319,6 +361,11 @@ class ConfigSession:
                     "subnets": " subnets" in f" {opts}", "metric": int(metric.group(1)) if metric else 20,
                     "mtype": int(mtype.group(1)) if mtype else 2, "route_map": rmap.group(1) if rmap else None,
                 }
+        elif not re.match(r"(area \S+ (stub|nssa)|redistribute )", body):
+            if neg:
+                p.extra = [x for x in p.extra if x != body and _key(x) != _key(body)]
+            else:
+                _remember(p.extra, body)               # passive-interface, network, default-information ...
 
     def _rmap(self, s: str) -> None:
         entry = next(e for e in self.cfg.route_maps[self.mode[1]] if e["seq"] == self.mode[2])
@@ -331,7 +378,7 @@ class ConfigSession:
     def _sla(self, s: str) -> None:
         op = self.cfg.sla[self.mode[1]]
         if m := re.fullmatch(r"icmp-echo (\S+)(?: source-interface (\S+))?.*", s):
-            op.update(type="icmp-echo", target=m.group(1), source=ifname(m.group(2)) if m.group(2) else None)
+            op.update(type="icmp-echo", target=m.group(1), source=ifname(m.group(2)) if m.group(2) else None, line=s)
         elif m := re.fullmatch(r"frequency (\d+)", s):
             op["frequency"] = int(m.group(1))
 
