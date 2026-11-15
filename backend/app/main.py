@@ -24,9 +24,15 @@ async def lifespan(_: FastAPI):
         tasks.append(asyncio.create_task(monitor.run_forever()))
     if settings.kafka_bootstrap:
         tasks.append(asyncio.create_task(kafka_tail.run_forever()))
+    ssh_servers = []
+    if settings.simulate and settings.sim_ssh:
+        from .sim import sshd
+        ssh_servers = await sshd.start()
     yield
     for t in tasks:
         t.cancel()
+    for srv in ssh_servers:
+        srv.close()
     bus.flush()
 
 
@@ -160,6 +166,31 @@ def credentials() -> dict:
     """Login, password and enable secret of every router of every lab, checked against its baseline. Read by the
     Credentials tab and scripts/putty-setup.ps1. Anyone who can open the dashboard can read them: fine for a private lab VM."""
     return {"labs": labinfo.credentials()}
+
+
+@app.get("/api/putty")
+def putty_sessions() -> dict:
+    """What the PuTTY tab and scripts/putty-setup.ps1 need: one SSH session per router. In simulation mode the routers
+    are the backend's SSH servers (127.0.0.1:2201...); on the real lab they are the routers' management addresses,
+    reached through the EVE-NG VM (a jump host, because 192.168.99.x only exists inside the VM)."""
+    from urllib.parse import urlparse
+    out = []
+    if settings.simulate:
+        if settings.sim_ssh:
+            from .sim import sshd
+            for name, lg in sshd.logins().items():
+                out.append({"lab": "sim", "router": name, "host": settings.sim_ssh_host, "port": lg["port"],
+                            "username": lg["username"], "password": lg["password"], "secret": lg["secret"],
+                            "jump": None, "kex": None})
+        return {"mode": "simulation", "enabled": settings.sim_ssh, "sessions": out,
+                "fingerprint": sshd.fingerprint() if settings.sim_ssh else ""}
+    vm = urlparse(settings.eveng_url).hostname or ""
+    for lab in labinfo.credentials():
+        for r in lab["routers"]:
+            out.append({"lab": lab["id"], "router": r["name"], "host": r["mgmt_ip"], "port": 22,
+                        "username": r["username"], "password": r["password"], "secret": r["secret"],
+                        "jump": vm, "kex": "ios15"})
+    return {"mode": "eve-ng", "enabled": True, "sessions": out, "fingerprint": ""}
 
 
 _SHOW_ALLOWED = [re.compile(p) for p in (

@@ -76,7 +76,9 @@ export default function Credentials({ sim }) {
                         {r.baseline_match === false && <span className="badge bad">baseline differs</span>}
                         {r.baseline_match == null && <span className="badge muted">no baseline</span>}
                       </td>
-                      <td>{sim ? <span className="muted small" title="Simulation mode: there is no router to SSH to">simulated</span> : <a className="btn" href={puttyHref(lab.id, r.name)}>SSH session</a>}</td>
+                      <td>{sim && lab.id !== "shared"
+                        ? <span className="muted small" title="Simulation mode models the shared lab only">not simulated</span>
+                        : <a className="btn" href={puttyHref(sim ? "sim" : lab.id, r.name)}>SSH session</a>}</td>
                     </tr>
                   );
                 })}

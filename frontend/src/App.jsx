@@ -5,6 +5,7 @@ import Scenarios from "./Scenarios.jsx";
 import Cli from "./Cli.jsx";
 import Lab from "./Lab.jsx";
 import Credentials from "./Credentials.jsx";
+import Putty from "./Putty.jsx";
 import Learn from "./Learn.jsx";
 import Kafka from "./Kafka.jsx";
 import Prometheus from "./Prometheus.jsx";
@@ -14,6 +15,7 @@ const TABS = [
   ["monitor", "Monitor"],
   ["scenarios", "Scenarios"],
   ["cli", "CLI"],
+  ["putty", "PuTTY"],
   ["learn", "Learn"],
   ["credentials", "Credentials"],
   ["kafka", "Kafka"],
@@ -100,6 +102,7 @@ export default function App() {
         {tab === "cli" && <Cli router={arg} key={arg || "cli"} sim={sim} />}
         {tab === "lab" && <Lab cfg={cfg} goToCli={(r) => go("cli", r)} />}
         {tab === "credentials" && <Credentials sim={sim} />}
+        {tab === "putty" && <Putty sim={sim} />}
         {tab === "learn" && <Learn goToScenarios={goToScenarios} />}
         {tab === "kafka" && <Kafka cfg={cfg} />}
         {tab === "prometheus" && <Prometheus cfg={cfg} />}

@@ -57,6 +57,16 @@ class SimLab:
                 out += ["write mem", "Building configuration...", "[OK]", f"{host}#"]
             return "\n".join(out)
 
+    def config_line(self, router: str, mode: tuple, line: str) -> tuple:
+        """One line typed in configuration mode (the SSH shell). Takes and returns the session's mode, so a session
+        keeps working when Rollback / reset replaces the router's configuration object underneath it."""
+        with self._lock:
+            sess = ConfigSession(self.model.configs[router])
+            sess.mode = mode
+            sess.apply([line])
+            self.model.compute(time.time())
+            return sess.mode
+
     def exec_cmd(self, router: str, command: str) -> str:
         with self._lock:
             host = self.model.configs[router].hostname

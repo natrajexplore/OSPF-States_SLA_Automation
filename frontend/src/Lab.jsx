@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePoll, useRun } from "./api.js";
-import { liveState, puttyHref } from "./liveState.js";
+import { liveState, ownLab, puttyHref } from "./liveState.js";
 import RunPanel from "./RunPanel.jsx";
 import Topo3D from "./Topo3D.jsx";
 
@@ -216,7 +216,7 @@ export default function Lab({ cfg, goToCli }) {
                     </td>
                     <td className="nowrap small">v2 {count(m?.neighbors)}<br />v3 {count(m?.neighbors_v6)}</td>
                     <td className="nowrap">
-                      {!sim && <><a className="btn small" href={puttyHref("shared", n.name)} title="Own PuTTY window (one-time scripts\putty-setup.ps1)">SSH session</a>{" "}</>}
+                      <a className="btn small" href={puttyHref(ownLab(sim), n.name)} title="Own PuTTY window (one-time setup: PuTTY tab)">SSH session</a>{" "}
                       <button className="secondary small" onClick={() => goToCli(n.name)} title="Open the CLI tab on this router and run show ip ospf neighbor">CLI tab</button>
                     </td>
                   </tr>

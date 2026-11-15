@@ -137,3 +137,10 @@ select, input[type=text], input[type=search] { font: inherit; background: var(--
 footer { max-width: 1400px; margin: 0 auto; padding: 8px 16px 24px; color: var(--muted); font-size: 12px; display: flex; gap: 14px; flex-wrap: wrap; }
 @media (max-width: 1600px) { .brand h1 small { display: none; } }
 @media (max-width: 700px) { header { padding: 8px 12px; } }
+
+/* PuTTY tab */
+.steps { margin: 6px 0 10px; padding-left: 20px; line-height: 1.6; }
+.steps li { margin-bottom: 6px; }
+.cmdline { display: flex; gap: 6px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
+.cmdline code { background: var(--code); padding: 4px 8px; border-radius: 6px; overflow-wrap: anywhere; }
+td.actions { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }

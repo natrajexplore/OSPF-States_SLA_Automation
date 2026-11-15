@@ -17,7 +17,7 @@ shows a before/after diff, while a live telemetry pipeline (Kafka, Prometheus, G
 | **Dashboard** | React UI: live OSPF monitor, 18 scenarios with Apply / Rollback and streamed logs, the Lab tab, Learn, Kafka and Prometheus tabs | `http://<eve-vm>:8082` |
 | **Lab tab (3D)** | The lab in 3D with live OSPFv2 or OSPFv3 adjacency colours; Apply / Rollback animates every SSH session (a beam per configuration line) next to the SSH / CLI transcript with the real IOS prompts | `#lab`, [details](#the-lab-tab-cli-credentials-and-putty) |
 | **CLI and Credentials tabs** | Any whitelisted `show` on any router with a kept transcript; every router's login, password and enable secret (hidden until Reveal) for all 9 labs | `#cli`, `#credentials` |
-| **PuTTY sessions** | One click on **SSH session** opens a router in its own PuTTY window, through the EVE VM (one-time `scripts\putty-setup.ps1`) | [PuTTY](#one-putty-window-per-router) |
+| **PuTTY tab** | Log in to every router with PuTTY: in simulation mode R1-R4 are real SSH servers on `127.0.0.1:2201-2204` with an IOS CLI, on the real lab through the EVE VM (one-time `scripts\putty-setup.ps1`) | `#putty`, [PuTTY](#one-putty-window-per-router) |
 | **18 scenarios** | 8 OSPF concepts (01-08) and, for each, the production failure that belongs to it (09-16), plus OSPFv3 for IPv6 (17-18), as YAML + Jinja2 with apply and rollback | [`backend/scenarios/`](backend/scenarios/), [`backend/templates/`](backend/templates/) |
 | **9 standalone labs** | One folder per topic with a README, every router's configuration ready to paste, an EVE topology (`.unl` and `.zip`) and its two scenarios, driven by `labtool.sh` | [`labs/`](labs/) |
 | **Learn tab** | A course on 9 OSPF topics (OSPFv3 included) at three levels (Beginner, Pro, Expert), each level unlocked by a short quiz; every topic has a 3D packet flow through the lab and a table of its OSPF parameters | `http://<eve-vm>:8082/#learn` |
@@ -366,17 +366,28 @@ private lab VM and worth remembering before exposing it. Today all 40 are `lab` 
 
 ### One PuTTY window per router
 
+**Simulation mode** (`docker-compose.demo.yml`): the backend runs an SSH server per simulated router, published on this PC only:
+R1 `127.0.0.1:2201`, R2 `2202`, R3 `2203`, R4 `2204`, login `lab` / `lab123` (privilege 15, so the prompt is `R1#`). The shell is a
+small IOS CLI on the same model the dashboard drives: `show ...` (with abbreviations and `| include`), `configure terminal`, interface
+and `router ospf` commands, `end` / Ctrl-Z, `write memory`, `clear ip ospf process`, `?`. A change typed in PuTTY shows up in the 3D
+view, the monitor and Grafana; **Reset lab to baseline** undoes it. The **PuTTY** tab lists the sessions with **Open in PuTTY**, the
+`putty.exe` and `ssh` commands, and the host-key fingerprint. Without the setup below: `putty.exe -ssh lab@127.0.0.1 -P 2203`.
+Turn it off with `OSPF_SIM_SSH=false`.
+
 A web page cannot start programs, so **SSH session** uses an `ospfputty:<lab>/<router>` link, which a small handler installed once on
 your PC turns into `putty.exe -load "OSPF <lab> <router>"` (your Windows user only, no administrator rights):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\putty-setup.ps1 -Server http://<eve-vm>:8082    # install
+powershell -ExecutionPolicy Bypass -File scripts\putty-setup.ps1                                  # simulation (localhost:8082)
+powershell -ExecutionPolicy Bypass -File scripts\putty-setup.ps1 -Server http://<eve-vm>:8082    # real lab
 powershell -ExecutionPolicy Bypass -File scripts\putty-setup.ps1 -Server http://<eve-vm>:8082 -DryRun
 powershell -ExecutionPolicy Bypass -File scripts\putty-setup.ps1 -Uninstall
 ```
 
-* It reads the router list from `GET /api/credentials` and creates **40 saved sessions** named `OSPF <lab> <router>` (for example
-  `OSPF shared R3`, `OSPF 06_nssa R4`), user `lab`, and registers the `ospfputty:` link. Run it again when labs are added.
+* It reads the sessions from `GET /api/putty` and saves them in PuTTY as `OSPF <lab> <router>`: `OSPF sim R1..R4` in simulation, or
+  **40 sessions** on the real lab (for example `OSPF shared R3`, `OSPF 06_nssa R4`), and registers the `ospfputty:` link. It replaces the
+  earlier OSPF sessions, so run it again when you switch between simulation and the real lab, or when labs are added.
+* The rest of this list is about the real lab.
 * The management addresses 192.168.99.11-14 exist only inside the EVE VM, so each session goes **through the VM** with the Windows
   OpenSSH client (`ssh.exe -W %host:%port root@<eve-vm>`; change the user with `-JumpUser`). You need key login from your PC to the VM.
 * The sessions offer only what the routers' IOS 15.2 SSH server supports (DH group14/group1, AES/3DES, RSA host keys). A 32-bit PuTTY
